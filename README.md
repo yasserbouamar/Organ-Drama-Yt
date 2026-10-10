@@ -1,5 +1,7 @@
 # Cosmic Eviction (60s Pilot)
 
+> This repository also holds a second pilot, **Organ Drama: Midnight Pizza**, as a standalone Remotion project in [`organ-drama/`](organ-drama/README.md).
+
 A 60-second comic-pop science explainer built in [Remotion](https://www.remotion.dev) with React and TypeScript. The Sun is the landlord of Solar System St. and it wants Earth out. Rocket, Lil Sat and Gravity go looking for the safest place in the universe. It turns out to be the one they already live in.
 
 Everything is drawn in code. The halftone Ben-Day dots, the 6px ink outlines with white sticker borders, the puppets and the infographics are all procedural SVG. There are no image assets.
