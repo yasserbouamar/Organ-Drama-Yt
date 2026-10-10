@@ -18,7 +18,7 @@ import {PALETTE} from '../theme';
 import type {Point} from '../types/characters';
 import {impacts, pop, settle, shake, tween} from '../utils/animation';
 import {mouthAt} from '../utils/lipSync';
-import {cameraAt, localToWorld, useSceneClock, worldToLocal, worldToScreen} from './shared';
+import {cameraAt, cue, localToWorld, useSceneClock, worldToLocal, worldToScreen} from './shared';
 
 const W = {
   home: lineWindow('s1-nobody-home'),
@@ -30,8 +30,14 @@ const W = {
 const EARTH = {x: 1180, y: 540, size: 560};
 const SUN = {x: 470, y: 470, size: 640};
 const ROCKET_SIZE = 230;
-/** Hammer impacts, scene-local frames. */
-const HITS = [66, 80, 94, 108];
+// Beats keyed to the narrator's words ("That's the Sun. It owns the whole street, and it wants you out.").
+const HITS = [0, 1, 2].map((i) => cue('s1-sun-landlord', 'It') + i * 10);
+const JINGLE_AT = cue('s1-sun-landlord', 'whole');
+const SIGN_AT = cue('s1-sun-landlord', 'street', {offset: -3});
+const RETRACT_AT = cue('s1-sun-landlord', 'and', {offset: -6});
+const PUSH_AT = cue('s1-sun-landlord', 'and');
+const GLARE_AT = cue('s1-sun-landlord', 'wants', {offset: -3});
+const THUMBS_AT = cue('s1-relax-sat', 'anywhere');
 const STRIKE_ANGLE = 100;
 const RAISED_ANGLE = 18;
 /** Grip-to-striking-face distance of the hammer, in the Sun's local units. */
@@ -40,13 +46,13 @@ const HAMMER_REACH = 150;
 const hammerAngle = (f: number): number => {
   for (const h of HITS) {
     if (f <= h) {
-      if (f < h - 11) {
+      if (f < h - 8) {
         return STRIKE_ANGLE;
       }
-      if (f < h - 3) {
-        return interpolate(f, [h - 11, h - 3], [STRIKE_ANGLE, RAISED_ANGLE], {easing: Easing.out(Easing.cubic)});
+      if (f < h - 2) {
+        return interpolate(f, [h - 8, h - 2], [STRIKE_ANGLE, RAISED_ANGLE], {easing: Easing.out(Easing.cubic)});
       }
-      return interpolate(f, [h - 3, h], [RAISED_ANGLE, STRIKE_ANGLE], {easing: Easing.in(Easing.quad)});
+      return interpolate(f, [h - 2, h], [RAISED_ANGLE, STRIKE_ANGLE], {easing: Easing.in(Easing.quad)});
     }
   }
   return STRIKE_ANGLE;
@@ -58,7 +64,7 @@ export const Scene1EvictionNotice: React.FC = () => {
   const cam = cameraAt(frame, fps, [
     {at: 0, x: 1320, y: 520, zoom: 1.7},
     {at: W.sun.from, x: 960, y: 520, zoom: 1.0, duration: 26},
-    {at: 136, x: 780, y: 480, zoom: 1.16, duration: 18},
+    {at: PUSH_AT, x: 780, y: 480, zoom: 1.16, duration: 18},
     {at: W.evicted.from, x: 1290, y: 450, zoom: 1.22, duration: 20},
     {at: W.relax.from, x: 1360, y: 520, zoom: 1.12, duration: 14},
   ]);
@@ -69,16 +75,16 @@ export const Scene1EvictionNotice: React.FC = () => {
   const sunIn = settle(frame, fps, W.sun.from, 22);
   const sunPos = {x: interpolate(sunIn, [0, 1], [-520, SUN.x]), y: SUN.y, size: SUN.size};
   const nail = localToWorld(EARTH, EARTH_VIEWBOX, {x: EARTH_DOOR.x, y: EARTH_DOOR.y - 34});
-  const angle = frame < HITS[HITS.length - 1] + 14 ? hammerAngle(frame) : RAISED_ANGLE;
+  const angle = frame < HITS[HITS.length - 1] + 8 ? hammerAngle(frame) : RAISED_ANGLE;
   const strikeHandWorld: Point = {
     x: nail.x - Math.sin((STRIKE_ANGLE * Math.PI) / 180) * HAMMER_REACH * (SUN.size / SUN_VIEWBOX.width),
     y: nail.y + Math.cos((STRIKE_ANGLE * Math.PI) / 180) * HAMMER_REACH * (SUN.size / SUN_VIEWBOX.width),
   };
   const strikeHand = worldToLocal({...SUN}, SUN_VIEWBOX, strikeHandWorld);
   const restHand = {x: 690, y: 300};
-  const reach = settle(frame, fps, W.sun.from + 8, 14) * (1 - settle(frame, fps, 124, 16));
+  const reach = settle(frame, fps, W.sun.from + 4, 12) * (1 - settle(frame, fps, RETRACT_AT, 16));
   const hand = {x: interpolate(reach, [0, 1], [restHand.x, strikeHand.x]), y: interpolate(reach, [0, 1], [restHand.y, strikeHand.y])};
-  const glare = settle(frame, fps, 140, 12);
+  const glare = settle(frame, fps, GLARE_AT, 12);
   const notice = pop(frame, fps, HITS[0]);
 
   // ── Rocket: peeks from behind Earth, then blasts out front for the hero beat ──
@@ -97,7 +103,7 @@ export const Scene1EvictionNotice: React.FC = () => {
   const rocketLook =
     frame < W.sun.from ? {x: -0.9, y: 0.5} : frame < W.evicted.from ? {x: -1, y: 0} : frame < W.relax.from ? {x: 0.6, y: -0.8} : {x: 0.4, y: -0.2};
   const puff = pop(frame, fps, W.relax.from + 8);
-  const thumbs = pop(frame, fps, W.relax.from + 34);
+  const thumbs = pop(frame, fps, THUMBS_AT);
 
   // ── Lil Sat: zips in, trembling ──
   const satIn = settle(frame, fps, W.evicted.from - 4, 18);
@@ -127,8 +133,8 @@ export const Scene1EvictionNotice: React.FC = () => {
       ) : null}
 
       <Camera x={cam.x} y={cam.y} zoom={cam.zoom} offset={camShake}>
-        {frame >= 92 ? (
-          <Place x={880} y={180} scale={pop(frame, fps, 92)} rotation={-6} zIndex={0}>
+        {frame >= SIGN_AT ? (
+          <Place x={880} y={180} scale={pop(frame, fps, SIGN_AT)} rotation={-6} zIndex={0}>
             <StreetSign street="SOLAR SYSTEM ST." plaque="OWNER: THE SUN" size={360} />
           </Place>
         ) : null}
@@ -158,7 +164,7 @@ export const Scene1EvictionNotice: React.FC = () => {
             mouth={glare > 0.5 ? 'frown' : 'smug'}
             glassesDrop={glare}
             hammer={{hand, angle}}
-            jingle={Math.max(hit, impacts(frame, [100], 30))}
+            jingle={Math.max(hit, impacts(frame, [JINGLE_AT], 30))}
           />
         </Place>
 

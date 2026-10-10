@@ -11,7 +11,9 @@
     "render:draft": "remotion render CosmicEvictionPilot out/cosmic-eviction-pilot-draft.mp4 --scale=0.5",
     "stills": "remotion still CosmicEvictionPilot out/still.png --frame=120",
     "typecheck": "tsc --noEmit",
-    "voiceover": "tsx scripts/generate-voiceover.ts"
+    "voiceover:setup": "python3 -m venv .venv && .venv/bin/pip install -r scripts/voiceover/requirements.txt",
+    "voiceover": ".venv/bin/python scripts/voiceover/kokoro_voiceover.py",
+    "voiceover:elevenlabs": "tsx scripts/generate-voiceover.ts"
   },
   "dependencies": {
     "@fontsource/bangers": "5.3.0",

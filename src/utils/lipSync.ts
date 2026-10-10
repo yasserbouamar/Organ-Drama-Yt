@@ -54,6 +54,27 @@ export const getWordTimings = (line: DialogueEvent): WordTiming[] => {
   return words;
 };
 
+const normaliseWord = (w: string): string => w.toLowerCase().replace(/[^\p{L}\p{N}'-]/gu, '');
+
+/**
+ * When `word` (its `occurrence`-th match, punctuation ignored) is spoken in a
+ * line, in frames from the line's start. Follows the real voiceover timing
+ * when a clip exists. Throws on a typo so a broken cue fails loudly.
+ */
+export const wordTiming = (line: DialogueEvent, word: string, occurrence = 0): WordTiming => {
+  const target = normaliseWord(word);
+  let seen = 0;
+  for (const w of getWordTimings(line)) {
+    if (normaliseWord(w.text) === target) {
+      if (seen === occurrence) {
+        return w;
+      }
+      seen++;
+    }
+  }
+  throw new Error(`Word "${word}" (#${occurrence}) not found in line ${line.id}`);
+};
+
 /** Index of the word being spoken at `localFrame` (frames since the line started), or the last one spoken. */
 export const getWordIndexAt = (words: readonly WordTiming[], localFrame: number): number => {
   let index = -1;

@@ -1,8 +1,9 @@
 import {spring, useCurrentFrame, useVideoConfig} from 'remotion';
-import {getScene} from '../data/script60s';
+import {getLine, getScene, lineWindow} from '../data/script60s';
 import {VIDEO} from '../theme';
 import type {Point} from '../types/characters';
 import type {SceneId} from '../types/dialogue';
+import {wordTiming} from '../utils/lipSync';
 
 export interface CameraState {
   x: number;
@@ -89,3 +90,25 @@ export const worldToLocal = (
   const s = placed.size / viewBox.width;
   return {x: (p.x - placed.x) / s + viewBox.width / 2, y: (p.y - placed.y) / s + viewBox.height / 2};
 };
+
+export interface CueOptions {
+  /** Which match of the word, if it appears more than once (0-based). */
+  occurrence?: number;
+  /** Frames to add (negative = anticipate the word). */
+  offset?: number;
+  /** Key off the word's start (default) or its end. */
+  edge?: 'start' | 'end';
+}
+
+/**
+ * Scene-local frame when `word` is spoken in a line, so a beat (a hammer hit,
+ * a stamp, a badge) lands on the voice instead of on a hard-coded frame.
+ */
+export const cue = (lineId: string, word: string, {occurrence = 0, offset = 0, edge = 'start'}: CueOptions = {}): number => {
+  const w = wordTiming(getLine(lineId), word, occurrence);
+  return Math.round(lineWindow(lineId).from + (edge === 'start' ? w.startFrame : w.endFrame) + offset);
+};
+
+/** Like `cue`, but relative to the line's own start (for panels mounted in a line-length Sequence). */
+export const lineCue = (lineId: string, word: string, options: CueOptions = {}): number =>
+  cue(lineId, word, options) - lineWindow(lineId).from;

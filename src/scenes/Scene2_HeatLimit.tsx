@@ -17,6 +17,7 @@ import {getScene, lineWindow} from '../data/script60s';
 import {FONTS, PALETTE, TONES} from '../theme';
 import {impact, pop, popInOut, settle, shake, tween} from '../utils/animation';
 import {mouthAt} from '../utils/lipSync';
+import {lineCue} from './shared';
 
 const SCENE = getScene(2);
 const W = {
@@ -68,16 +69,26 @@ const Chip: React.FC<{text: string; sub?: string; x: number; y: number; scale: n
   ) : null;
 
 // ── Panel A: the Sun won't swallow us yet, but it brightens 10% per billion years ──
+const A = {
+  ghostIn: lineCue('s2-ten-percent', 'swallow', {offset: -14}),
+  chipIn: lineCue('s2-ten-percent', 'five', {offset: -4}),
+  dialIn: lineCue('s2-ten-percent', 'But', {offset: -6}),
+  needleFrom: lineCue('s2-ten-percent', 'every'),
+  badge: lineCue('s2-ten-percent', 'ten', {offset: -2}),
+  needleTo: lineCue('s2-ten-percent', 'brighter', {edge: 'end'}),
+  worried: lineCue('s2-ten-percent', 'shines'),
+};
+
 const SunDialPanel: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const punch = usePanelPunch();
-  const ghost = tween(frame, [8, 48], [0, 1]) * (1 - tween(frame, [62, 84], [0, 1]));
+  const ghost = tween(frame, [A.ghostIn, A.ghostIn + 36], [0, 1]) * (1 - tween(frame, [A.dialIn - 16, A.dialIn + 4], [0, 1]));
   const ghostR = 250 + ghost * 820;
-  const needle = tween(frame, [88, 150], [0, 1]);
-  const dialIn = pop(frame, fps, 80);
-  const badge = pop(frame, fps, 118);
-  const earthWorried = frame > 100;
+  const needle = tween(frame, [A.needleFrom, A.needleTo], [0, 1]);
+  const dialIn = pop(frame, fps, A.dialIn);
+  const badge = pop(frame, fps, A.badge);
+  const earthWorried = frame > A.worried;
 
   return (
     <AbsoluteFill style={{transform: `scale(${punch})`}}>
@@ -97,7 +108,7 @@ const SunDialPanel: React.FC = () => {
         sub="~5 BILLION YEARS AWAY"
         x={1000}
         y={170}
-        scale={popInOut(frame, fps, 24, 76, 8)}
+        scale={popInOut(frame, fps, A.chipIn, A.dialIn - 2, 8)}
         color={PALETTE.hazardYellow}
       />
       <Place x={600} y={560}>
@@ -120,7 +131,7 @@ const TanPanel: React.FC<{from: number}> = ({from}) => {
   const global = useGlobal(from);
   const punch = usePanelPunch();
   const slide = settle(frame, fps, 0, 14);
-  const tan = tween(frame, [10, 60], [0, 0.85]);
+  const tan = tween(frame, [lineCue('s2-just-a-tan', 'Ten'), lineCue('s2-just-a-tan', 'tan', {edge: 'end'})], [0, 0.85]);
   return (
     <AbsoluteFill style={{transform: `scale(${punch})`}}>
       <SunburstRays colors={[PALETTE.hazardYellow, '#FFC400']} center={{x: 140, y: 120}} speed={0.4} />
@@ -140,23 +151,34 @@ const TanPanel: React.FC<{from: number}> = ({from}) => {
           rightArm={{angle: 35, bend: 0.3}}
         />
       </Place>
-      <ComicBurst text="SIZZLE" x={1450} y={300} start={34} duration={30} size={120} rotation={10} fill={PALETTE.white} textColor={PALETTE.solarOrange} />
+      <ComicBurst text="SIZZLE" x={1450} y={300} start={lineCue('s2-just-a-tan', 'tan')} duration={30} size={120} rotation={10} fill={PALETTE.white} textColor={PALETTE.solarOrange} />
     </AbsoluteFill>
   );
 };
 
 // ── Panel C: oceans boil dry → the real move-out date ──
+const C = {
+  heat: lineCue('s2-oceans-dry', 'extra'),
+  steam: lineCue('s2-oceans-dry', 'sunlight'),
+  boils: lineCue('s2-oceans-dry', 'boils'),
+  oceans: lineCue('s2-oceans-dry', 'oceans'),
+  dry: lineCue('s2-oceans-dry', 'dry'),
+  dryEnd: lineCue('s2-oceans-dry', 'dry', {edge: 'end'}),
+  moveOut: lineCue('s2-oceans-dry', 'real', {offset: -4}),
+};
+
 const OceansPanel: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const punch = usePanelPunch();
-  const boil = tween(frame, [24, 54], [0, 1]);
-  const steam = tween(frame, [34, 70], [0, 1]);
-  const dryness = tween(frame, [50, 92], [0, 1]);
-  const stampAt = 70;
+  const boil = tween(frame, [C.heat, C.boils + 6], [0, 1]);
+  const steam = tween(frame, [C.steam, C.oceans + 6], [0, 1]);
+  const dryness = tween(frame, [C.boils, C.dryEnd + 4], [0, 1]);
+  // The stamp lands on "dry".
+  const stampAt = C.dry - STAMP_LAND_FRAMES;
   const stampHit = impact(frame, stampAt + STAMP_LAND_FRAMES, 14);
   const camShake = shake(frame, stampHit * 22, 's2-stamp');
-  const tag = pop(frame, fps, 90);
+  const tag = pop(frame, fps, C.moveOut);
   return (
     <AbsoluteFill style={{transform: `translate(${camShake.x}px, ${camShake.y}px) scale(${punch})`}}>
       <HalftoneBackground
@@ -167,14 +189,14 @@ const OceansPanel: React.FC = () => {
       <Place x={960} y={500} rotation={Math.sin(frame * 0.6) * boil * 1.5}>
         <EarthCharacter
           size={640}
-          expression={frame < 40 ? 'scared' : 'panic'}
+          expression={frame < C.boils ? 'scared' : 'panic'}
           look={{x: -0.8, y: -0.3}}
           boil={boil * (1 - dryness * 0.7)}
           steam={steam}
           dryness={dryness}
         />
       </Place>
-      <ComicBurst text="SSSSS!" x={1430} y={260} start={36} duration={34} size={130} rotation={12} fill={PALETTE.white} textColor={PALETTE.electricCyan} />
+      <ComicBurst text="SSSSS!" x={1430} y={260} start={C.boils} duration={34} size={130} rotation={12} fill={PALETTE.white} textColor={PALETTE.electricCyan} />
       <Stamp text="OCEANS DRIED" subtext="EST. +1 BILLION YRS" x={960} y={520} start={stampAt} width={660} rotation={-12} />
       <Chip text="REAL MOVE-OUT DATE" sub="~1 BILLION YEARS FROM NOW" x={960} y={110} scale={tag} color={PALETTE.electricCyan} rotation={2} />
     </AbsoluteFill>

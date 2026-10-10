@@ -22,7 +22,7 @@ import {getScene, lineWindow} from '../data/script60s';
 import {FONTS, PALETTE, TONES} from '../theme';
 import {impact, pop, popInOut, settle, shake, tween} from '../utils/animation';
 import {mouthAt} from '../utils/lipSync';
-import {cameraAt, useSceneClock, worldToLocal, worldToScreen} from './shared';
+import {cameraAt, lineCue, useSceneClock, worldToLocal, worldToScreen} from './shared';
 
 const SCENE = getScene(4);
 const W = {
@@ -125,6 +125,18 @@ const GravityPanel: React.FC = () => {
 const EARTH = {x: 1180, y: 540, size: 400};
 const EARTH_R = (230 * EARTH.size) / 600;
 
+// "That churning iron core turns Earth into a giant magnet, deflecting the deadly solar wind right around us."
+const MAG = {
+  churning: lineCue('s4-giant-magnet', 'churning', {offset: -2}),
+  turns: lineCue('s4-giant-magnet', 'turns'),
+  giant: lineCue('s4-giant-magnet', 'giant'),
+  magnetEnd: lineCue('s4-giant-magnet', 'magnet', {edge: 'end'}),
+  deflecting: lineCue('s4-giant-magnet', 'deflecting'),
+  deadly: lineCue('s4-giant-magnet', 'deadly', {offset: -2}),
+  around: lineCue('s4-giant-magnet', 'around'),
+  aroundEnd: lineCue('s4-giant-magnet', 'us', {edge: 'end'}),
+};
+
 const ShieldWorld: React.FC<{from: number}> = ({from}) => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
@@ -133,18 +145,19 @@ const ShieldWorld: React.FC<{from: number}> = ({from}) => {
 
   const cam = cameraAt(frame, fps, [
     {at: 0, x: EARTH.x, y: EARTH.y, zoom: 1.9},
-    {at: 26, x: 960, y: 540, zoom: 1.0, duration: 30},
+    {at: MAG.turns - 4, x: 960, y: 540, zoom: 1.0, duration: 30},
     {at: lightsAt, x: 1060, y: 420, zoom: 1.45, duration: 22},
   ]);
   const cutaway = settle(frame, fps, 2, 16) * (1 - settle(frame, fps, lightsAt - 10, 12));
-  const fieldDraw = tween(frame, [34, 92], [0, 1], Easing.inOut(Easing.cubic));
+  const fieldDraw = tween(frame, [MAG.turns, MAG.magnetEnd], [0, 1], Easing.inOut(Easing.cubic));
   const wind = tween(frame, [10, 30], [0, 1]);
-  const deflection = tween(frame, [112, 165], [0, 1], Easing.inOut(Easing.cubic));
-  const poles = pop(frame, fps, 56);
-  const windTag = popInOut(frame, fps, 96, lightsAt, 8);
-  const shieldTag = popInOut(frame, fps, 140, lightsAt, 8);
+  const deflection = tween(frame, [MAG.deflecting, MAG.aroundEnd], [0, 1], Easing.inOut(Easing.cubic));
+  const poles = pop(frame, fps, MAG.giant);
+  const windTag = popInOut(frame, fps, MAG.deadly, lightsAt, 8);
+  const shieldTag = popInOut(frame, fps, MAG.around, lightsAt, 8);
   const aurora = tween(frame, [lightsAt - 4, lightsAt + 16], [0, 1]);
-  const earthExpression = frame < 120 ? 'scared' : 'happy';
+  const relieved = deflection > 0.6;
+  const earthExpression = relieved ? 'happy' : 'scared';
 
   // Lil Sat (screen space) for the aurora beat.
   const satIn = settle(frame, fps, lightsAt, 14);
@@ -168,14 +181,14 @@ const ShieldWorld: React.FC<{from: number}> = ({from}) => {
           </div>
         ) : null}
         <Place x={EARTH.x} y={EARTH.y}>
-          <EarthCharacter size={EARTH.size} expression={earthExpression} cutaway={cutaway} look={frame < 120 ? {x: -1, y: 0} : {x: -0.4, y: 0.3}} ripples={false} />
+          <EarthCharacter size={EARTH.size} expression={earthExpression} cutaway={cutaway} look={relieved ? {x: -0.4, y: 0.3} : {x: -1, y: 0}} ripples={false} />
         </Place>
       </Camera>
       <Tag text="N" x={npole.x} y={npole.y - 34} scale={poles * (1 - aurora)} color={TONES.stampRed} size={40} rotation={0} />
       <Tag text="S" x={spole.x} y={spole.y + 34} scale={poles * (1 - aurora)} color={PALETTE.electricCyan} size={40} rotation={0} />
       <Tag text="DEADLY SOLAR WIND" x={430} y={170} scale={windTag} color={PALETTE.hazardYellow} rotation={-4} />
       <Tag text="MAGNETIC SHIELD" x={1500} y={150} scale={shieldTag} color={TONES.shieldGreen} rotation={3} />
-      <Tag text="CHURNING IRON CORE" x={1180} y={130} scale={popInOut(frame, fps, 6, 34, 6)} color={PALETTE.hazardYellow} rotation={-2} />
+      <Tag text="CHURNING IRON CORE" x={1180} y={130} scale={popInOut(frame, fps, MAG.churning, MAG.turns + 8, 6)} color={PALETTE.hazardYellow} rotation={-2} />
       {satIn > 0.01 ? (
         <Place x={interpolate(satIn, [0, 1], [-300, 480])} y={600 + Math.sin(frame * 0.12) * 10}>
           <SatelliteCharacter
@@ -196,7 +209,8 @@ const ShieldWorld: React.FC<{from: number}> = ({from}) => {
 };
 
 // ── Panel D: "Pack the bags, we're staying home!" ─────────────────────────
-const SLAM_AT = 34;
+// The lid slams on "bags" in "Pack the bags, we're staying home!".
+const SLAM_AT = lineCue('s4-staying-home', 'bags');
 
 const StayingPanel: React.FC<{from: number}> = ({from}) => {
   const frame = useCurrentFrame();

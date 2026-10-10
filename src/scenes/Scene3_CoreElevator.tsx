@@ -20,6 +20,7 @@ import {getScene, lineWindow} from '../data/script60s';
 import {FONTS, INK, PALETTE, TONES} from '../theme';
 import {impact, pop, popInOut, settle, shake, tween} from '../utils/animation';
 import {mouthAt} from '../utils/lipSync';
+import {lineCue} from './shared';
 
 const SCENE = getScene(3);
 const W = {
@@ -82,16 +83,26 @@ const CellarHatch: React.FC<{open: number; glow: number}> = ({open, glow}) => {
   );
 };
 
+// "Easy! When it's too hot upstairs, you go to the basement! Hop in!"
+const CELLAR = {
+  open: lineCue('s3-basement', 'Easy', {edge: 'end'}),
+  sign: lineCue('s3-basement', 'basement', {offset: -4}),
+  dragFrom: lineCue('s3-basement', 'Hop', {offset: -16}),
+  dragTo: lineCue('s3-basement', 'in', {edge: 'end'}),
+  end: W.basement.duration,
+};
+
 const CellarPanel: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const global = useGlobal(0);
-  const open = settle(frame, fps, 18, 12);
-  const drag = tween(frame, [62, 88], [0, 1]);
-  const drop = tween(frame, [86, 96], [0, 1], Easing.in(Easing.quad));
-  const satHop = tween(frame, [78, 96], [0, 1]);
-  const dive = tween(frame, [90, 100], [0, 1], Easing.in(Easing.cubic));
-  const signIn = pop(frame, fps, 40);
+  const open = settle(frame, fps, CELLAR.open, 12);
+  const drag = tween(frame, [CELLAR.dragFrom, CELLAR.dragTo], [0, 1]);
+  const drop = tween(frame, [CELLAR.dragTo - 2, CELLAR.end - 4], [0, 1], Easing.in(Easing.quad));
+  const satHop = tween(frame, [CELLAR.dragFrom + 8, CELLAR.end - 2], [0, 1]);
+  const dive = tween(frame, [CELLAR.end - 10, CELLAR.end], [0, 1], Easing.in(Easing.cubic));
+  const signIn = pop(frame, fps, CELLAR.sign);
+  const reaching = frame < CELLAR.open + 12;
   const crateX = interpolate(drag, [0, 1], [880, HATCH.x]);
   const rocketX = interpolate(drag, [0, 1], [610, HATCH.x - 250]);
   const zoom = 1 + dive * 2.4;
@@ -135,8 +146,8 @@ const CellarPanel: React.FC = () => {
           mouth={mouthAt('ROCKET', global, 'smile')}
           look={{x: 1, y: 0.4}}
           thrust={1}
-          leftArm={{angle: frame < 30 ? 120 : 30}}
-          rightArm={{angle: frame < 30 ? 70 : drag > 0 ? 80 : 50, glove: frame < 30 ? 'fist' : 'open'}}
+          leftArm={{angle: reaching ? 120 : 30}}
+          rightArm={{angle: reaching ? 70 : drag > 0 ? 80 : 50, glove: reaching ? 'fist' : 'open'}}
         />
       </Place>
       <Place
@@ -146,17 +157,24 @@ const CellarPanel: React.FC = () => {
         rotation={satHop * 180}
         zIndex={6}
       >
-        <SatelliteCharacter size={300} expression={frame < 60 ? 'scared' : 'confused'} tremble={0.6} wingAngle={14} look={{x: -0.8, y: 0.8}} />
+        <SatelliteCharacter size={300} expression={frame < CELLAR.sign ? 'scared' : 'confused'} tremble={0.6} wingAngle={14} look={{x: -0.8, y: 0.8}} />
       </Place>
-      <ComicBurst text="KA-CHUNK!" x={HATCH.x + 160} y={600} start={22} duration={16} size={120} rotation={8} />
+      <ComicBurst text="KA-CHUNK!" x={HATCH.x + 160} y={600} start={CELLAR.open + 4} duration={16} size={120} rotation={8} />
     </AbsoluteFill>
   );
 };
 
 // ── Panel B: the descent ──────────────────────────────────────────────────
 const STRATA = {crustEnd: 900, mantleEnd: 3100, coreEnd: 5200};
-const SCROLL_KEYS = {frames: [0, 30, 115, 170], px: [0, 420, 2620, 3420]};
-const MILES_KEYS = {frames: [0, 30, 115], miles: [0, 25, 1800]};
+// "Down through the crust, past the mantle. Eighteen hundred miles down, solid rock melts into churning liquid iron."
+// Layer boundaries cross the cage as their words are spoken; 1,800 MI lands on "melts".
+const DESCENT = {
+  mantle: lineCue('s3-descent', 'mantle'),
+  melts: lineCue('s3-descent', 'melts'),
+  end: W.descent.duration,
+};
+const SCROLL_KEYS = {frames: [0, DESCENT.mantle, DESCENT.melts, DESCENT.end], px: [0, 420, 2620, 3420]};
+const MILES_KEYS = {frames: [0, DESCENT.mantle, DESCENT.melts], miles: [0, 25, 1800]};
 
 const scrollAt = (f: number): number =>
   interpolate(f, SCROLL_KEYS.frames, SCROLL_KEYS.px, {extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: Easing.inOut(Easing.sin)});
@@ -240,7 +258,7 @@ const DescentPanel: React.FC = () => {
     extrapolateRight: 'clamp',
     easing: Easing.inOut(Easing.sin),
   });
-  const heat = tween(frame, [20, 140], [0, 1]);
+  const heat = tween(frame, [DESCENT.mantle - 10, DESCENT.melts], [0, 1]);
   const sway = Math.sin(frame * 0.15) * 2.5;
   const labelY = (stripY: number) => stripY - scroll;
   const odoIn = pop(frame, fps, 4);
@@ -252,7 +270,7 @@ const DescentPanel: React.FC = () => {
       <SpeedLines variant="vertical" color={PALETTE.white} count={30} speed={-Math.max(8, velocity * 1.4)} opacity={Math.min(0.8, velocity / 40)} thickness={8} seed="s3-drop" />
       <Label text="CRUST" sub="0–25 MI" color={TONES.desertTan} style={{left: 300, top: labelY(420)}} />
       <Label text="MANTLE" sub="SOLID ROCK · 25–1,800 MI" color="#FF8A5C" style={{left: 310, top: labelY(1900)}} />
-      <Label text="OUTER CORE" sub="CHURNING LIQUID IRON" color={PALETTE.hazardYellow} style={{left: 330, top: labelY(STRATA.mantleEnd + 420)}} />
+      <Label text="OUTER CORE" sub="CHURNING LIQUID IRON" color={PALETTE.hazardYellow} style={{left: 330, top: labelY(STRATA.mantleEnd + 160)}} />
       <Place x={960} y={500} rotation={sway} anchor="center">
         <ElevatorCage size={440} cableLength={900}>
           <div style={{position: 'absolute', left: 30, top: 70}}>
@@ -274,13 +292,22 @@ const DescentPanel: React.FC = () => {
 };
 
 // ── Panel C: the inner core ───────────────────────────────────────────────
+// "And dead center sits a solid iron ball the size of Pluto, burning at ten thousand degrees!"
+const CORE = {
+  solid: lineCue('s3-iron-ball', 'solid'),
+  pluto: lineCue('s3-iron-ball', 'size', {offset: -4}),
+  thermo: lineCue('s3-iron-ball', 'burning', {offset: -6}),
+  mercuryFrom: lineCue('s3-iron-ball', 'burning'),
+  mercuryTo: lineCue('s3-iron-ball', 'degrees', {edge: 'end'}),
+};
+
 const CorePanel: React.FC = () => {
   const frame = useCurrentFrame();
   const {fps} = useVideoConfig();
   const rise = settle(frame, fps, 0, 26);
-  const plutoIn = pop(frame, fps, 36);
-  const thermoIn = pop(frame, fps, 52);
-  const mercury = tween(frame, [60, 100], [0.08, 1], Easing.out(Easing.cubic));
+  const plutoIn = pop(frame, fps, CORE.pluto);
+  const thermoIn = pop(frame, fps, CORE.thermo);
+  const mercury = tween(frame, [CORE.mercuryFrom, CORE.mercuryTo], [0.08, 1], Easing.out(Easing.cubic));
   return (
     <AbsoluteFill>
       <HalftoneBackground
@@ -333,7 +360,7 @@ const CorePanel: React.FC = () => {
       <Place x={1600} y={640} scale={thermoIn}>
         <Thermometer value={mercury} reading={mercury * 10000} height={520} />
       </Place>
-      <ComicBurst text="SOLID IRON" x={830} y={640} start={20} duration={34} size={130} rotation={-6} fill={PALETTE.white} textColor={PALETTE.ink} fontSize={58} />
+      <ComicBurst text="SOLID IRON" x={830} y={640} start={CORE.solid} duration={34} size={130} rotation={-6} fill={PALETTE.white} textColor={PALETTE.ink} fontSize={58} />
     </AbsoluteFill>
   );
 };
@@ -393,7 +420,7 @@ export const Scene3CoreElevator: React.FC = () => {
           DING!
         </div>
       ) : null}
-      <LineBadge lineId="s3-basement" x={Math.min(1700, 610 + tween(frame, [62, 88], [0, 1]) * 330)} y={300} />
+      <LineBadge lineId="s3-basement" x={Math.min(1700, 610 + tween(frame, [CELLAR.dragFrom, CELLAR.dragTo], [0, 1]) * 330)} y={300} />
       <LineBadge lineId="s3-another-sun" x={960} y={150} />
     </AbsoluteFill>
   );

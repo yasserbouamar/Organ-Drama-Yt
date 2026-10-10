@@ -9,12 +9,17 @@ export const tween = (
   [from, to]: readonly [number, number],
   [a, b]: readonly [number, number],
   easing: (t: number) => number = Easing.inOut(Easing.cubic),
-): number =>
-  interpolate(frame, [from, to], [a, b], {
+): number => {
+  // Word-cued ranges can collapse after a re-record; step instead of throwing.
+  if (to <= from) {
+    return frame >= from ? b : a;
+  }
+  return interpolate(frame, [from, to], [a, b], {
     extrapolateLeft: 'clamp',
     extrapolateRight: 'clamp',
     easing,
   });
+};
 
 /** The house pop spring (damping 12, stiffness 200), starting at `start`. */
 export const pop = (frame: number, fps: number, start = 0, config: Partial<SpringConfig> = POP_SPRING): number =>

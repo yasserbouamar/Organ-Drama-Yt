@@ -22,65 +22,72 @@ npm run typecheck
 
 The first render downloads Remotion's headless Chrome. If your machine can't reach the download host, point Remotion at any Chromium build with `--browser-executable=/path/to/chrome`.
 
-## Voiceover (ElevenLabs)
+## Voiceover
 
-The video renders silent until clips exist. Captions and lip-sync then use estimated word timings.
+The voiceover ships in the repo (`public/voiceover/*.mp3`). It was made with **[Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M)**, an open-weight (Apache-2.0) neural TTS model that runs offline on a CPU, so there's no account or API key. `npm run render` already has sound.
+
+To regenerate it, for example after editing a line, you need Python 3.10+:
 
 ```bash
-cp .env.example .env          # add ELEVENLABS_API_KEY
-npm run voiceover -- --dry-run   # show the casting plan
-npm run voiceover                # render every line
-npm run voiceover -- --only s2-just-a-tan --force   # redo one line
+npm run voiceover:setup                              # once: .venv + kokoro-onnx (~330 MB model downloads on first run)
+npm run voiceover -- --force                         # re-voice every line
+npm run voiceover -- --only s2-just-a-tan --force    # re-voice one line
+npm run voiceover -- --apply-layout                  # retime script60s.ts around the new clip lengths
 ```
 
-For each line, `scripts/generate-voiceover.ts` does the following:
+For each line, `scripts/voiceover/kokoro_voiceover.py` does the following:
 
-1. It calls ElevenLabs' `/text-to-speech/{voice}/with-timestamps` endpoint.
-2. It saves the clip to `public/voiceover/<line-id>.mp3`.
-3. It turns the character alignment into **real word timings**.
-4. It rewrites `src/data/voiceover.generated.ts`.
+1. It synthesizes the line in the speaker's voice and tightens over-long pauses.
+2. It applies the character's pitch and FX, then normalises loudness.
+3. It writes `public/voiceover/<line-id>.mp3`.
+4. It derives **word timings** from the audio: voiced frames are shared out in proportion to each word's phoneme count, so pauses land between the right words.
+5. It writes `src/data/voiceover.generated.ts`.
 
-The composition plays each clip at its line's start frame, and captions and mouth shapes follow the real timings automatically.
+The composition plays each clip at its line's start. Captions highlight the words as they're spoken, mouths flap on the real timing, and scene beats fire on cue words (below).
 
-| Speaker | Voice (alternate) | Direction |
-|---|---|---|
-| HOST | George (Adam) | Clear, enthusiastic, mid-tempo explainer |
-| ROCKET | Callum (Fin) | High-energy, brash, fast-talking |
-| LIL SAT | Freya (Gigi) | High-pitched, cute, curious |
-| SUN | Bill (Marcus) | Gruff, monotone landlord baritone |
-| GRAVITY | Antoni (Adam) | Deep, smooth, calm cosmic bass |
+| Speaker | Kokoro voice | Speed | Processing | Direction |
+|---|---|---|---|---|
+| HOST | `bm_george` (British) | 1.30× | none | Clear, enthusiastic explainer |
+| ROCKET | `am_puck` | 1.18× (+3% when shouting) | +1 semitone, presence boost | Brash, fast-talking |
+| LIL SAT | `af_bella` | 1.12× | +3 semitones | High, cute, curious |
+| GRAVITY | `am_fenrir` | 0.96× | −3 semitones, bass boost, cosmic echo | Deep, calm bass |
+| SUN | `bm_lewis` | 1.0× | −2.5 semitones | No lines in the pilot |
 
-Voice IDs live in `src/data/voiceCast.ts`. Override any of them with `ELEVENLABS_VOICE_<SPEAKER>` if your account uses different voices.
+The cast, per-line speed tweaks and pronunciation fixes (`SAY_AS`) are at the top of the script.
 
-The script warns when a clip runs longer than its frame window. **Expect a warning on the last line:** the spec gives `s4-home-sweet-home` (11 words) only 59 frames, which is about 2 s, and natural speech needs about 3 s. To fix it, raise HOST's `speed` or borrow frames from the previous line in `script60s.ts`.
+Every take was transcribed with Whisper `base.en` to check it says its line. The remaining transcript differences are number formatting ("5 billion"), homophones ("wait"/"weight", "we're"/"were") and Whisper dropping a sentence-initial "And".
+
+**Prefer ElevenLabs?** `npm run voiceover:elevenlabs` (needs `ELEVENLABS_API_KEY`, see `.env.example`) writes the same manifest with ElevenLabs voices (`src/data/voiceCast.ts`). Run `npm run voiceover -- --apply-layout` afterwards to retime around those clips.
 
 ## Frame map
 
-Line windows are half-open, `[startFrame, startFrame + durationInFrames)`. They use the spec's start frames verbatim and tile frames 0–1799 with no gaps. `assertScriptIntegrity()` throws in the Studio if an edit breaks that.
+Line windows are half-open, `[startFrame, startFrame + durationInFrames)`, and tile frames 0–1799 with no gaps. `assertScriptIntegrity()` throws in the Studio if an edit breaks that.
+
+The spec's original windows (F0, F46, F181, …) would have needed some lines at nearly double speed. One example is "That's plenty… move-out date": 19 words in 4 s. Other lines would have sat in silence. So the windows are **conformed to the voice track**: lines run end to end around their real lengths, and the spare frames become breathing gaps. Scene beats are keyed to spoken words with `cue(lineId, word)` (`src/scenes/shared.ts`), so they stay in sync whenever the timing changes. Examples: the hammer hits on "It owns…", the stamp lands on "dry", and the odometer reaches 1,800 MI on "melts".
 
 | Scene | Frames | Line | Speaker |
 |---|---|---|---|
-| **1 · The Eviction Notice** | 0–360 | | |
+| **1 · The Eviction Notice** | 0–346 | | |
 | | 0 | Nobody's home. | ROCKET |
-| | 46 | That's the Sun. It owns the whole street… | HOST |
-| | 181 | Evicted?! Where do we go?… | LIL SAT |
-| | 271 | Relax, Sat! I can take you anywhere!… | ROCKET |
-| **2 · The 10% Heat Limit** | 361–780 | | |
-| | 361 | Wait, the Sun won't swallow us for five billion years… | HOST |
-| | 521 | Ten percent? That's just a tan! | ROCKET |
-| | 591 | That's plenty. In roughly one billion years… | HOST |
-| | 711 | So where do we hide?! | LIL SAT |
-| **3 · The Core Elevator** | 781–1260 | | |
-| | 781 | Easy! When it's too hot upstairs… | ROCKET |
-| | 881 | Down through the crust, past the mantle… | HOST |
-| | 1051 | And dead center sits a solid iron ball… | HOST |
-| | 1171 | We ran from the Sun, and found another Sun?! | ROCKET |
-| **4 · The Magnetic Shield Reveal** | 1261–1799 | | |
-| | 1261 | Somebody has to hold it together. | GRAVITY |
-| | 1351 | That churning iron core turns Earth into a giant magnet… | HOST |
-| | 1531 | The green lights! Our shield is already on! | LIL SAT |
-| | 1651 | The zero-bedroom magnet! Pack the bags… | ROCKET |
-| | 1741 | The safest place in the universe… is where you already are. | HOST |
+| | 33 | That's the Sun. It owns the whole street… | HOST |
+| | 128 | Evicted?! Where do we go?… | LIL SAT |
+| | 241 | Relax, Sat! I can take you anywhere!… | ROCKET |
+| **2 · The 10% Heat Limit** | 347–792 | | |
+| | 347 | Wait, the Sun won't swallow us for five billion years… | HOST |
+| | 518 | Ten percent? That's just a tan! | ROCKET |
+| | 569 | That's plenty. In roughly one billion years… | HOST |
+| | 751 | So where do we hide?! | LIL SAT |
+| **3 · The Core Elevator** | 793–1286 | | |
+| | 793 | Easy! When it's too hot upstairs… | ROCKET |
+| | 888 | Down through the crust, past the mantle… | HOST |
+| | 1066 | And dead center sits a solid iron ball… | HOST |
+| | 1217 | We ran from the Sun, and found another Sun?! | ROCKET |
+| **4 · The Magnetic Shield Reveal** | 1287–1799 | | |
+| | 1287 | Somebody has to hold it together. | GRAVITY |
+| | 1355 | That churning iron core turns Earth into a giant magnet… | HOST |
+| | 1523 | The green lights! Our shield is already on! | LIL SAT |
+| | 1591 | The zero-bedroom magnet! Pack the bags… | ROCKET |
+| | 1690 | The safest place in the universe… is where you already are. | HOST |
 
 ## Project layout
 
@@ -111,12 +118,18 @@ src/
 ├── scenes/                     # Scene1_EvictionNotice … Scene4_MagneticShield, shared camera helpers
 └── utils/                      # Animation (springs, noise, shake), geometry, lip-sync, SVG ids
 scripts/
-└── generate-voiceover.ts       # ElevenLabs TTS + word alignment → manifest
+├── voiceover/
+│   ├── kokoro_voiceover.py     # Offline Kokoro TTS: cast, FX, word timings, --apply-layout
+│   └── requirements.txt
+├── generate-voiceover.ts       # Optional ElevenLabs TTS + alignment → same manifest
+└── dump-script.ts              # Prints script60s.ts as JSON for the Python tool
+public/
+└── voiceover/                  # One MP3 per line (generated, committed)
 ```
 
 ## How it fits together
 
-- **Script-driven.** `script60s.ts` is the single source of truth. Captions read the active line from the current frame. Speaker badges, lip-sync and scene beats read line windows through `lineWindow(id)`. If you retime a line, the picture follows.
+- **Script-driven.** `script60s.ts` is the single source of truth. Captions read the active line from the current frame. Speaker badges and lip-sync read line windows through `lineWindow(id)`, and scene beats read spoken words through `cue(id, word)`. If you retime a line or re-record it, the picture follows.
 - **Puppets** are pure SVG components. You control them with props: `expression`, `mouth` (a viseme), `look`, `blink`, plus character rigs such as Rocket's `thrust`, `puff`, `bulge` and `sunglasses`, Lil Sat's `wingAngle`, `tremble` and `aura`, the Sun's `hammer`, `glassesDrop` and `heat`, Gravity's stretchy `arms`, and Earth's `doorOpen`, `notice`, `boil`, `dryness` and `cutaway`. Idle motion (blinks, flames, wobble) comes from the frame number.
 - **Sticker borders** use an SVG `feMorphology` filter (`Sticker.tsx`), so the white border follows each silhouette. CSS `drop-shadow` can't spread, so it can't do this.
 - **Lip-sync:** `mouthAt(speaker, frame)` cycles through syllable shapes while that speaker's line plays. Shouted lines get bigger shapes, calm lines get softer ones, and the mouth closes between words.
@@ -136,4 +149,5 @@ Example: `npx remotion render CosmicEvictionPilot out/clean.mp4 --props='{"showS
 
 ## Credits
 
-Fonts: [Bangers](https://fonts.google.com/specimen/Bangers) and [Montserrat](https://fonts.google.com/specimen/Montserrat), both under the SIL Open Font License, bundled from `@fontsource`.
+- Fonts: [Bangers](https://fonts.google.com/specimen/Bangers) and [Montserrat](https://fonts.google.com/specimen/Montserrat), both under the SIL Open Font License, bundled from `@fontsource`.
+- Voices: [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) by hexgrad (Apache-2.0), run through [kokoro-onnx](https://github.com/thewh1teagle/kokoro-onnx) (MIT).

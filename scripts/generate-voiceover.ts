@@ -1,10 +1,10 @@
 /**
  * Generates the ElevenLabs voiceover for every line in `src/data/script60s.ts`.
  *
- *   ELEVENLABS_API_KEY=… npm run voiceover
- *   npm run voiceover -- --only s1-nobody-home,s2-just-a-tan
- *   npm run voiceover -- --force      # re-render clips that already exist
- *   npm run voiceover -- --dry-run    # print the casting plan, call nothing
+ *   ELEVENLABS_API_KEY=… npm run voiceover:elevenlabs
+ *   npm run voiceover:elevenlabs -- --only s1-nobody-home,s2-just-a-tan
+ *   npm run voiceover:elevenlabs -- --force      # re-render clips that already exist
+ *   npm run voiceover:elevenlabs -- --dry-run    # print the casting plan, call nothing
  *
  * For each line it calls the `with-timestamps` endpoint, writes
  * `public/voiceover/<line-id>.mp3`, converts the character alignment into
