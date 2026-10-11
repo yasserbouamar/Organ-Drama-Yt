@@ -4,6 +4,8 @@ import {assertScriptIntegrity, getScene, sceneLength, TOTAL_FRAMES} from './data
 import {CharacterSheet} from './dev/CharacterSheet';
 import {loadOrganDramaFonts} from './fonts';
 import {defaultPilotProps, OrganDramaPilot} from './OrganDramaPilot';
+import {REMAKE_FRAMES} from './remake/remakeScript';
+import {RemakeTest} from './remake/RemakeTest';
 import {Scene1MidnightHeist} from './scenes/Scene1_MidnightHeist';
 import {Scene2ValveAndPizza} from './scenes/Scene2_ValveAndPizza';
 import {Scene3TwentyMinuteDelay} from './scenes/Scene3_TwentyMinuteDelay';
@@ -48,6 +50,9 @@ export const RemotionRoot: React.FC = () => (
           height={VIDEO.height}
         />
       ))}
+    </Folder>
+    <Folder name="Tests">
+      <Composition id="ReferenceRemake" component={RemakeTest} durationInFrames={REMAKE_FRAMES} fps={VIDEO.fps} width={VIDEO.width} height={VIDEO.height} />
     </Folder>
   </>
 );

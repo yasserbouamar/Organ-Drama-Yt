@@ -112,12 +112,14 @@ src/
 │   └── fx/                      # Camera, Place, ComicBurst, SunburstRays, SceneWipe, Zzz
 ├── scenes/                      # Scene1_MidnightHeist … Scene5_ThreeHourRule, UpstairsSet, shared camera/clock
 ├── utils/                       # Animation (springs, blinks), lip-sync, syllables, geometry, static files
+├── remake/                      # ReferenceRemake style test (script, puppets, sets, shots)
 └── dev/CharacterSheet.tsx
 scripts/
 ├── generate-audio.ts            # Voiceover + SFX + music generator
 ├── kokoro_tts.py                # Offline Kokoro helper (optional)
 └── requirements.txt
 public/audio/{vo,sfx,bgm}/       # Generated audio (committed)
+public/audio/remake/vo/          # Kokoro lines for the style test
 ```
 
 ## How it fits together
@@ -146,6 +148,17 @@ public/audio/{vo,sfx,bgm}/       # Generated audio (committed)
 | `musicVolume` | `1` | Multiplier on the ducking curve |
 | `sfxVolume` | `1` | Sound-effect gain |
 | `music` | `true` | Music on/off |
+
+## Style test: ReferenceRemake
+
+`Tests/ReferenceRemake` (1124 frames, about 37 s) is an internal test. It rebuilds a short reference clip shot for shot to check whether this pipeline can match a given look. It has no captions and no music. It uses sparse SFX and a Kokoro-voiced cast with a British narrator, and it reuses the pilot's lip sync, SFX player and voice sequencing.
+
+```bash
+npm run render:remake                        # → out/reference-remake.mp4
+npm run audio -- --script remake --provider kokoro --force   # re-voice the test
+```
+
+The script, timings and cast are in `src/remake/remakeScript.ts`. The puppets (`RemakeBrain`, `RemakeStomach`) and sets use the thinner plum line and the muted palette in `src/remake/remakeTheme.ts`.
 
 ## Credits
 

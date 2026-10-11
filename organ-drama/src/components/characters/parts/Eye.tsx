@@ -25,6 +25,9 @@ export interface EyeProps {
   style?: EyeStyle;
   /** Extra star-shaped highlight for "excited". */
   sparkle?: boolean;
+  /** Outline colour and weight (defaults: the pilot's ink). */
+  ink?: string;
+  inkWidth?: number;
 }
 
 /**
@@ -44,10 +47,12 @@ export const Eye: React.FC<EyeProps> = ({
   lidColor,
   style = 'round',
   sparkle = false,
+  ink = PALETTE.ink,
+  inkWidth = INK.bold,
 }) => {
   const clipId = useSvgId('eye');
   const gradId = useSvgId('eye-grad');
-  const stroke = {fill: 'none', stroke: PALETTE.ink, strokeWidth: INK.bold, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const};
+  const stroke = {fill: 'none', stroke: ink, strokeWidth: inkWidth, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const};
   const closedArc = <path d={`M${cx - r * 0.85},${cy + r * 0.05} Q${cx},${cy + r * 0.55} ${cx + r * 0.85},${cy + r * 0.05}`} {...stroke} />;
 
   if (style === 'happy') {
@@ -66,7 +71,7 @@ export const Eye: React.FC<EyeProps> = ({
   }
 
   const pr = r * pupil;
-  const travel = Math.max(0, r - pr - INK.bold * 0.6);
+  const travel = Math.max(0, r - pr - inkWidth * 0.6);
   const px = cx + clamp(look.x, -1, 1) * travel;
   const py = cy + clamp(look.y, -1, 1) * travel * 0.85;
   const lidY = cy - r + closure * 2 * r;
@@ -86,7 +91,7 @@ export const Eye: React.FC<EyeProps> = ({
       </defs>
       <circle cx={cx} cy={cy} r={r} fill={`url(#${gradId})`} />
       <g clipPath={`url(#${clipId})`}>
-        <circle cx={px} cy={py} r={pr} fill={PALETTE.ink} />
+        <circle cx={px} cy={py} r={pr} fill={ink} />
         <circle cx={px - pr * 0.38} cy={py - pr * 0.4} r={Math.max(2.5, pr * 0.36)} fill={PALETTE.white} />
         <circle cx={px + pr * 0.35} cy={py + pr * 0.38} r={Math.max(1.5, pr * 0.16)} fill={PALETTE.white} opacity={0.9} />
         {sparkle ? (
@@ -101,17 +106,17 @@ export const Eye: React.FC<EyeProps> = ({
               d={`M${cx - r * 1.6},${cy - r * 1.6} L${cx + r * 1.6},${cy - r * 1.6} L${cx + r * 1.6},${lidY} Q${cx},${lidY + r * 0.22} ${cx - r * 1.6},${lidY} Z`}
               fill={lidColor}
             />
-            <path d={`M${cx - r * 1.6},${lidY} Q${cx},${lidY + r * 0.22} ${cx + r * 1.6},${lidY}`} {...stroke} strokeWidth={INK.medium} />
+            <path d={`M${cx - r * 1.6},${lidY} Q${cx},${lidY + r * 0.22} ${cx + r * 1.6},${lidY}`} {...stroke} strokeWidth={inkWidth * 0.75} />
           </g>
         ) : null}
         {lower > 0.01 ? (
           <>
             <path d={`M${cx - r * 1.5},${cy + r * 1.5} L${cx - r * 1.5},${lowY} Q${cx},${lowY - r * 0.25} ${cx + r * 1.5},${lowY} L${cx + r * 1.5},${cy + r * 1.5} Z`} fill={lidColor} />
-            <path d={`M${cx - r * 1.5},${lowY} Q${cx},${lowY - r * 0.25} ${cx + r * 1.5},${lowY}`} {...stroke} strokeWidth={INK.medium} />
+            <path d={`M${cx - r * 1.5},${lowY} Q${cx},${lowY - r * 0.25} ${cx + r * 1.5},${lowY}`} {...stroke} strokeWidth={inkWidth * 0.75} />
           </>
         ) : null}
       </g>
-      <circle cx={cx} cy={cy} r={r} fill="none" stroke={PALETTE.ink} strokeWidth={INK.bold} />
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke={ink} strokeWidth={inkWidth} />
     </g>
   );
 };

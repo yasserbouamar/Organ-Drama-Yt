@@ -7,6 +7,7 @@
  *   npm run audio -- --provider kokoro          # elevenlabs | edge | kokoro | procedural | auto
  *   npm run audio -- --skip-vo --skip-sfx --skip-bgm
  *   npm run audio -- --dry-run                  # print the plan, write nothing
+ *   npm run audio -- --script remake            # voice the reference-remake test instead of the pilot
  *
  * Voiceover providers, tried in order (`auto`), per line:
  *   1. ElevenLabs, when ELEVENLABS_API_KEY is set (shell or .env).
@@ -37,14 +38,15 @@ import {synthesizeSfx} from '../src/audio/ProceduralSFX';
 import {DIALOGUE, FPS, lineLength, SFX_CUES} from '../src/data/scriptData';
 import {VOICE_CAST} from '../src/data/voiceCast';
 import {VOICEOVER} from '../src/data/voiceover.generated';
-import type {SfxId, VoiceoverClip, VoiceoverManifest, VoiceProvider} from '../src/types/audio';
+import {REMAKE_CAST, REMAKE_DIALOGUE} from '../src/remake/remakeScript';
+import {VOICEOVER as REMAKE_VOICEOVER} from '../src/remake/voiceover.generated';
+import type {SfxId, VoiceoverClip, VoiceoverManifest, VoicePersona, VoiceProvider} from '../src/types/audio';
 import type {DialogueLine, SpeakerId, WordTiming} from '../src/types/dialogue';
 import {babblePlan} from '../src/utils/lipSync';
 import {planSyllables} from '../src/utils/syllables';
 
 const ROOT = process.cwd();
 const PUBLIC = path.join(ROOT, 'public');
-const MANIFEST = path.join(ROOT, 'src', 'data', 'voiceover.generated.ts');
 const KOKORO_HELPER = path.join(ROOT, 'scripts', 'kokoro_tts.py');
 
 const SR = 44100;
@@ -77,6 +79,46 @@ const only = option('only')
   .map((s) => s.trim())
   .filter(Boolean);
 const requested = (option('provider') ?? 'auto') as VoiceProvider | 'auto';
+
+/** A script the generator can voice: its lines, cast, manifest and where its clips go. */
+interface ScriptProject {
+  dialogue: readonly DialogueLine[];
+  cast: Record<SpeakerId, VoicePersona>;
+  manifest: VoiceoverManifest;
+  manifestPath: string;
+  /** Clip folder inside `public/`. */
+  voDir: string;
+  /** Whether this script also owns the baked SFX and music. */
+  bakesSfxAndMusic: boolean;
+}
+
+const PROJECTS: Record<string, ScriptProject> = {
+  pilot: {
+    dialogue: DIALOGUE,
+    cast: VOICE_CAST,
+    manifest: VOICEOVER,
+    manifestPath: path.join(ROOT, 'src', 'data', 'voiceover.generated.ts'),
+    voDir: 'audio/vo',
+    bakesSfxAndMusic: true,
+  },
+  remake: {
+    dialogue: REMAKE_DIALOGUE,
+    cast: REMAKE_CAST,
+    manifest: REMAKE_VOICEOVER,
+    manifestPath: path.join(ROOT, 'src', 'remake', 'voiceover.generated.ts'),
+    voDir: 'audio/remake/vo',
+    bakesSfxAndMusic: false,
+  },
+};
+
+const scriptId = option('script') ?? 'pilot';
+const PROJECT = PROJECTS[scriptId];
+if (!PROJECT) {
+  throw new Error(`Unknown --script "${scriptId}" (pilot or remake)`);
+}
+const SCRIPT = PROJECT.dialogue;
+const CAST = PROJECT.cast;
+const MANIFEST = PROJECT.manifestPath;
 
 const log = (msg: string) => console.log(msg);
 
@@ -372,7 +414,7 @@ const elevenlabs: Provider = {
   probe: async () => (process.env.ELEVENLABS_API_KEY ? null : 'ELEVENLABS_API_KEY is not set'),
   synthesize: (takes) =>
     eachTake(takes, async (take) => {
-      const persona = VOICE_CAST[take.speaker].elevenlabs;
+      const persona = CAST[take.speaker].elevenlabs;
       const voiceId = process.env[`ELEVENLABS_VOICE_${take.speaker}`] ?? persona.voiceId;
       const speed = Math.min(1.2, Math.max(0.7, persona.settings.speed * take.speed));
       const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`, {
@@ -425,7 +467,7 @@ const edge: Provider = {
   },
   synthesize: (takes) =>
     eachTake(takes, async (take) => {
-      const persona = VOICE_CAST[take.speaker].edge;
+      const persona = CAST[take.speaker].edge;
       const rate = (1 + percent(persona.rate)) * take.speed - 1;
       const file = `${take.base}.mp3`;
       edgeSynth(textFor(take.line), persona.voice, `${rate >= 0 ? '+' : ''}${Math.round(rate * 100)}%`, persona.pitch, file);
@@ -446,7 +488,7 @@ const kokoro: Provider = {
     spawnSync(kokoroPython(), [KOKORO_HELPER, '--probe']).status === 0 ? null : 'kokoro-onnx not installed (run `npm run audio:kokoro-setup`)',
   synthesize: async (takes) => {
     const jobs = takes.map((t) => {
-      const persona = VOICE_CAST[t.speaker].kokoro;
+      const persona = CAST[t.speaker].kokoro;
       return {text: textFor(t.line), voice: persona.voice, lang: persona.lang, speed: Math.min(2, persona.speed * t.speed), out: `${t.base}.wav`};
     });
     const res = spawnSync(kokoroPython(), [KOKORO_HELPER], {input: JSON.stringify(jobs), cwd: ROOT, maxBuffer: 1 << 26, stdio: ['pipe', 'pipe', 'inherit']});
@@ -467,7 +509,7 @@ const procedural: Provider = {
   synthesize: (takes) =>
     eachTake(takes, async (take) => {
       const {seconds, syllables} = babblePlan(take.line);
-      const voice = VOICE_CAST[take.speaker].babble;
+      const voice = CAST[take.speaker].babble;
       const audio = synthesizeBabble(syllables, seconds, voice, take.line.delivery, /\?\W*$/.test(take.line.text), SR, `${take.line.id}-${take.speaker}`);
       const file = `${take.base}.wav`;
       writeFileSync(file, encodeWav([audio], SR));
@@ -494,14 +536,14 @@ const prepare = (file: string, take: Take, provider: Provider): Float32Array => 
   if (!provider.colour) {
     return dry;
   }
-  const persona = VOICE_CAST[take.speaker].kokoro;
+  const persona = CAST[take.speaker].kokoro;
   // Effects can leave a quiet ring-out; trim it so the clip ends with the voice.
   return trimSilence(applyFilters(dry, [...pitchFilters(persona.semitones), ...(persona.effects ? [persona.effects] : []), 'highpass=f=70']), 40);
 };
 
 const writeManifest = (manifest: VoiceoverManifest): void => {
   const ordered: VoiceoverManifest = {};
-  for (const line of DIALOGUE) {
+  for (const line of SCRIPT) {
     if (manifest[line.id]) {
       ordered[line.id] = manifest[line.id];
     }
@@ -560,8 +602,8 @@ const synthesizeChain = async (takes: Take[], chain: Provider[], status: Map<Pro
 };
 
 const generateVoiceover = async (): Promise<void> => {
-  const manifest: VoiceoverManifest = {...VOICEOVER};
-  const lines = DIALOGUE.filter((l) => !only || only.includes(l.id)).filter(
+  const manifest: VoiceoverManifest = {...PROJECT.manifest};
+  const lines = SCRIPT.filter((l) => !only || only.includes(l.id)).filter(
     (l) => force || !manifest[l.id] || !existsSync(path.join(PUBLIC, manifest[l.id]!.file)),
   );
   if (lines.length === 0) {
@@ -580,7 +622,7 @@ const generateVoiceover = async (): Promise<void> => {
   log(`\nVoiceover: ${lines.length} line(s), providers: ${chain.map((p) => p.id).join(' → ')}`);
   if (dryRun) {
     for (const line of lines) {
-      const cast = line.speakers.map((s) => `${s}(${VOICE_CAST[s].kokoro.voice})`).join('+');
+      const cast = line.speakers.map((s) => `${s}(${CAST[s].kokoro.voice})`).join('+');
       log(`  ${line.id.padEnd(24)} ${String(lineLength(line)).padStart(4)}f  ${cast.padEnd(26)} "${line.text}"`);
     }
     return;
@@ -619,7 +661,7 @@ const generateVoiceover = async (): Promise<void> => {
     }
   }
 
-  mkdirSync(path.join(PUBLIC, 'audio', 'vo'), {recursive: true});
+  mkdirSync(path.join(PUBLIC, PROJECT.voDir), {recursive: true});
   const warnings: string[] = [];
   for (const line of lines) {
     const mine = rendered.filter((r) => r.take.line === line);
@@ -637,7 +679,7 @@ const generateVoiceover = async (): Promise<void> => {
     audio = normaliseVoice(audio);
 
     const ext = FFMPEG ? 'mp3' : 'wav';
-    const file = `audio/vo/${line.id}.${ext}`;
+    const file = `${PROJECT.voDir}/${line.id}.${ext}`;
     if (FFMPEG) {
       ffmpeg([...RAW_IN, '-c:a', 'libmp3lame', '-b:a', '160k', path.join(PUBLIC, file)], asBuffer(audio));
     } else {
@@ -702,7 +744,7 @@ const generateBgm = (): void => {
 
 const main = async (): Promise<void> => {
   if (only) {
-    const known = new Set(DIALOGUE.map((l) => l.id));
+    const known = new Set(SCRIPT.map((l) => l.id));
     const unknown = only.filter((id) => !known.has(id));
     if (unknown.length > 0) {
       throw new Error(`Unknown line id(s): ${unknown.join(', ')}`);
@@ -713,10 +755,10 @@ const main = async (): Promise<void> => {
     if (!flag('skip-vo')) {
       await generateVoiceover();
     }
-    if (!flag('skip-sfx') && !only) {
+    if (!flag('skip-sfx') && !only && PROJECT.bakesSfxAndMusic) {
       generateSfx();
     }
-    if (!flag('skip-bgm') && !only) {
+    if (!flag('skip-bgm') && !only && PROJECT.bakesSfxAndMusic) {
       generateBgm();
     }
   } finally {

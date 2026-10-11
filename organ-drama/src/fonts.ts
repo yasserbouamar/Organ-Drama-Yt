@@ -1,5 +1,6 @@
 import {loadFont} from '@remotion/fonts';
 import bangers from '@fontsource/bangers/files/bangers-latin-400-normal.woff2';
+import luckiestGuy from '@fontsource/luckiest-guy/files/luckiest-guy-latin-400-normal.woff2';
 import montserrat700 from '@fontsource/montserrat/files/montserrat-latin-700-normal.woff2';
 import montserrat800 from '@fontsource/montserrat/files/montserrat-latin-800-normal.woff2';
 import montserrat900 from '@fontsource/montserrat/files/montserrat-latin-900-normal.woff2';
@@ -17,6 +18,7 @@ export const loadOrganDramaFonts = (): void => {
   }
   loaded = true;
   void loadFont({family: 'Bangers', url: bangers, weight: '400'});
+  void loadFont({family: 'Luckiest Guy', url: luckiestGuy, weight: '400'});
   void loadFont({family: 'Montserrat', url: montserrat700, weight: '700'});
   void loadFont({family: 'Montserrat', url: montserrat800, weight: '800'});
   void loadFont({family: 'Montserrat', url: montserrat900, weight: '900'});

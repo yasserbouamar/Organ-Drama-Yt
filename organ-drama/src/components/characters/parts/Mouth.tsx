@@ -11,6 +11,8 @@ export interface MouthProps {
   /** 1 = a ~60-unit-wide mouth. */
   scale?: number;
   strokeWidth?: number;
+  /** Outline colour (defaults to the pilot's ink). */
+  ink?: string;
   /** Frame-driven wobble for `chew` and `wobbly`. */
   phase?: number;
 }
@@ -20,11 +22,11 @@ export interface MouthProps {
  * one set of visemes serves every puppet: `idle`, `open`, `o`, `teeth` and
  * `smile` for lip-sync, plus held acting shapes.
  */
-export const Mouth: React.FC<MouthProps> = ({shape, x, y, scale = 1, strokeWidth = 5, phase = 0}) => {
+export const Mouth: React.FC<MouthProps> = ({shape, x, y, scale = 1, strokeWidth = 5, ink = PALETTE.ink, phase = 0}) => {
   const clipId = useSvgId('mouth');
   const sw = strokeWidth / scale;
-  const line = {fill: 'none', stroke: PALETTE.ink, strokeWidth: sw * 1.15, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const};
-  const outline = {fill: 'none', stroke: PALETTE.ink, strokeWidth: sw, strokeLinejoin: 'round' as const};
+  const line = {fill: 'none', stroke: ink, strokeWidth: sw * 1.15, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const};
+  const outline = {fill: 'none', stroke: ink, strokeWidth: sw, strokeLinejoin: 'round' as const};
 
   // `teethTop` / `teethBottom`: y of the teeth edges inside the opening, or null for none.
   const opening = (d: string, teethTop: number | null, teethBottom: number | null, tongue: boolean) => (
@@ -80,8 +82,8 @@ export const Mouth: React.FC<MouthProps> = ({shape, x, y, scale = 1, strokeWidth
     case 'grin':
       art = (
         <>
-          <path d="M-29,-5 Q0,26 29,-5 Q0,9 -29,-5 Z" fill={PALETTE.white} {...{stroke: PALETTE.ink, strokeWidth: sw, strokeLinejoin: 'round'}} />
-          <path d="M-20,1 Q0,10 20,1" fill="none" stroke={PALETTE.ink} strokeWidth={sw * 0.5} />
+          <path d="M-29,-5 Q0,26 29,-5 Q0,9 -29,-5 Z" fill={PALETTE.white} {...{stroke: ink, strokeWidth: sw, strokeLinejoin: 'round'}} />
+          <path d="M-20,1 Q0,10 20,1" fill="none" stroke={ink} strokeWidth={sw * 0.5} />
         </>
       );
       break;

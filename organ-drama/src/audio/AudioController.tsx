@@ -4,7 +4,7 @@ import {DIALOGUE, FPS, TOTAL_FRAMES} from '../data/scriptData';
 import {VOICE_CAST} from '../data/voiceCast';
 import type {AudioTrack} from '../types/audio';
 import type {DialogueLine} from '../types/dialogue';
-import {getLineTrack, recordedClip} from '../utils/lipSync';
+import {getLineTrack, type LipSync, PILOT_LIP_SYNC} from '../utils/lipSync';
 import {firstPublicFile} from '../utils/staticFiles';
 import {BGM_LOOP_SECONDS, synthesizeBgmLoop} from './proceduralMusic';
 import {synthesizeBabble} from './proceduralVoice';
@@ -75,10 +75,10 @@ export const bgmVolumeAt = (frame: number): number => {
 };
 
 /** The audio track for one line: its recorded clip, or the babble voice synthesized live. */
-export const voiceTrackFor = (line: DialogueLine): AudioTrack => {
-  const clip = recordedClip(line);
-  const track = getLineTrack(line);
-  const durationInFrames = Math.min(track.durationInFrames, TOTAL_FRAMES - line.startFrame);
+export const voiceTrackFor = (line: DialogueLine, sync: LipSync = PILOT_LIP_SYNC, totalFrames = TOTAL_FRAMES): AudioTrack => {
+  const clip = sync.recordedClip(line);
+  const track = sync.getLineTrack(line);
+  const durationInFrames = Math.min(track.durationInFrames, totalFrames - line.startFrame);
   if (clip) {
     return {id: line.id, kind: 'vo', src: staticFile(clip.file), startFrame: line.startFrame, durationInFrames, volume: 1};
   }
@@ -94,8 +94,8 @@ export const voiceTrackFor = (line: DialogueLine): AudioTrack => {
   return {id: line.id, kind: 'vo', src, startFrame: line.startFrame, durationInFrames, volume: 0.9};
 };
 
-const VoiceLine: React.FC<{line: DialogueLine; gain: number}> = ({line, gain}) => {
-  const track = useMemo(() => voiceTrackFor(line), [line]);
+const VoiceLine: React.FC<{line: DialogueLine; gain: number; sync: LipSync; totalFrames: number}> = ({line, gain, sync, totalFrames}) => {
+  const track = useMemo(() => voiceTrackFor(line, sync, totalFrames), [line, sync, totalFrames]);
   const base = typeof track.volume === 'number' ? track.volume : 1;
   return (
     <Sequence from={track.startFrame} durationInFrames={track.durationInFrames} layout="none" name={`VO ${line.speakers.join('+')}: ${line.id}`}>
@@ -103,6 +103,22 @@ const VoiceLine: React.FC<{line: DialogueLine; gain: number}> = ({line, gain}) =
     </Sequence>
   );
 };
+
+export interface VoiceLinesProps {
+  dialogue: readonly DialogueLine[];
+  sync: LipSync;
+  totalFrames: number;
+  gain?: number;
+}
+
+/** Every line of a script on its start frame: recorded clips, or live babble where a clip is missing. */
+export const VoiceLines: React.FC<VoiceLinesProps> = ({dialogue, sync, totalFrames, gain = 1}) => (
+  <>
+    {dialogue.map((line) => (
+      <VoiceLine key={line.id} line={line} gain={gain} sync={sync} totalFrames={totalFrames} />
+    ))}
+  </>
+);
 
 const LOOP_FRAMES = Math.round(BGM_LOOP_SECONDS * FPS);
 
@@ -147,9 +163,7 @@ export interface AudioControllerProps {
  */
 export const AudioController: React.FC<AudioControllerProps> = ({voiceVolume = 1, musicVolume = 1, sfxVolume = 1, music = true}) => (
   <>
-    {DIALOGUE.map((line) => (
-      <VoiceLine key={line.id} line={line} gain={voiceVolume} />
-    ))}
+    <VoiceLines dialogue={DIALOGUE} sync={PILOT_LIP_SYNC} totalFrames={TOTAL_FRAMES} gain={voiceVolume} />
     {music ? <Music gain={musicVolume} /> : null}
     <SFXPlayer volume={sfxVolume} />
   </>

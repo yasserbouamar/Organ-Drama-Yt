@@ -1,6 +1,6 @@
-import {FPS, getActiveLine, lineLength} from '../data/scriptData';
+import {DIALOGUE, FPS, lineLength} from '../data/scriptData';
 import {VOICEOVER} from '../data/voiceover.generated';
-import type {VoiceoverClip} from '../types/audio';
+import type {VoiceoverClip, VoiceoverManifest} from '../types/audio';
 import type {MouthShape} from '../types/characters';
 import type {DialogueLine, SpeakerId, Viseme, WordTiming} from '../types/dialogue';
 import {planSyllables, visemesFromSyllables, wordsFromSyllables, type Syllable} from './syllables';
@@ -22,15 +22,6 @@ export interface LineTrack {
   syllables?: Syllable[];
 }
 
-/** The recorded clip for a line, if the manifest lists one and the file is really there. */
-export const recordedClip = (line: DialogueLine): VoiceoverClip | null => {
-  const clip = VOICEOVER[line.id];
-  if (!clip) {
-    return null;
-  }
-  return publicFileExists(clip.file) === false ? null : clip;
-};
-
 /**
  * Syllable plan for the babble voice: sized at a natural pace, never longer
  * than the line's window. Pure, so the Node audio generator can use it too.
@@ -43,51 +34,69 @@ export const babblePlan = (line: DialogueLine): {seconds: number; syllables: Syl
   return {seconds, syllables: planSyllables(line.text, seconds, line.delivery)};
 };
 
-const tracks = new Map<string, LineTrack>();
+/** Lip-sync for one script: its lines plus the voiceover manifest written for them. */
+export interface LipSync {
+  /** The recorded clip for a line, if the manifest lists one and the file is really there. */
+  recordedClip: (line: DialogueLine) => VoiceoverClip | null;
+  /** Lip-sync and caption timing for a line (cached). */
+  getLineTrack: (line: DialogueLine) => LineTrack;
+  /**
+   * Mouth shape for `speaker` at an absolute frame: the clip's analysed viseme
+   * while they talk, otherwise `rest` (an acting shape chosen by the scene).
+   */
+  mouthAt: (speaker: SpeakerId, frame: number, rest?: MouthShape) => MouthShape;
+}
 
-/** Lip-sync and caption timing for a line (cached). */
-export const getLineTrack = (line: DialogueLine): LineTrack => {
-  const cached = tracks.get(line.id);
-  if (cached) {
-    return cached;
-  }
-  const clip = recordedClip(line);
-  let track: LineTrack;
-  if (clip) {
-    track = {recorded: true, durationInFrames: clip.durationInFrames, visemes: clip.visemes, words: clip.words};
-  } else {
-    const {seconds, syllables} = babblePlan(line);
-    const frames = Math.ceil(seconds * FPS);
-    track = {
-      recorded: false,
-      durationInFrames: frames,
-      visemes: visemesFromSyllables(syllables, frames, FPS),
-      words: wordsFromSyllables(line.text, syllables, FPS),
-      syllables,
-    };
-  }
-  tracks.set(line.id, track);
-  return track;
+export const createLipSync = (dialogue: readonly DialogueLine[], manifest: VoiceoverManifest): LipSync => {
+  const recordedClip = (line: DialogueLine): VoiceoverClip | null => {
+    const clip = manifest[line.id];
+    if (!clip) {
+      return null;
+    }
+    return publicFileExists(clip.file) === false ? null : clip;
+  };
+
+  const tracks = new Map<string, LineTrack>();
+  const getLineTrack = (line: DialogueLine): LineTrack => {
+    const cached = tracks.get(line.id);
+    if (cached) {
+      return cached;
+    }
+    const clip = recordedClip(line);
+    let track: LineTrack;
+    if (clip) {
+      track = {recorded: true, durationInFrames: clip.durationInFrames, visemes: clip.visemes, words: clip.words};
+    } else {
+      const {seconds, syllables} = babblePlan(line);
+      const frames = Math.ceil(seconds * FPS);
+      track = {
+        recorded: false,
+        durationInFrames: frames,
+        visemes: visemesFromSyllables(syllables, frames, FPS),
+        words: wordsFromSyllables(line.text, syllables, FPS),
+        syllables,
+      };
+    }
+    tracks.set(line.id, track);
+    return track;
+  };
+
+  const mouthAt = (speaker: SpeakerId, frame: number, rest: MouthShape = 'idle'): MouthShape => {
+    const line = dialogue.find((l) => frame >= l.startFrame && frame <= l.endFrame && l.speakers.includes(speaker));
+    if (!line) {
+      return rest;
+    }
+    const track = getLineTrack(line);
+    const local = frame - line.startFrame;
+    if (local >= track.durationInFrames) {
+      return rest;
+    }
+    return CODE_TO_VISEME[track.visemes[local] ?? '-'] ?? 'idle';
+  };
+
+  return {recordedClip, getLineTrack, mouthAt};
 };
 
-const lineFor = (speaker: SpeakerId, frame: number): DialogueLine | null => {
-  const line = getActiveLine(frame);
-  return line && line.speakers.includes(speaker) ? line : null;
-};
-
-/**
- * Mouth shape for `speaker` at an absolute frame: the clip's analysed viseme
- * while they talk, otherwise `rest` (an acting shape chosen by the scene).
- */
-export const mouthAt = (speaker: SpeakerId, frame: number, rest: MouthShape = 'idle'): MouthShape => {
-  const line = lineFor(speaker, frame);
-  if (!line) {
-    return rest;
-  }
-  const track = getLineTrack(line);
-  const local = frame - line.startFrame;
-  if (local >= track.durationInFrames) {
-    return rest;
-  }
-  return CODE_TO_VISEME[track.visemes[local] ?? '-'] ?? 'idle';
-};
+/** The pilot's lip-sync. */
+export const PILOT_LIP_SYNC = createLipSync(DIALOGUE, VOICEOVER);
+export const {recordedClip, getLineTrack, mouthAt} = PILOT_LIP_SYNC;
