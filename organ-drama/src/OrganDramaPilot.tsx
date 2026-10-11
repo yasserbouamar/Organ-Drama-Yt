@@ -1,7 +1,6 @@
 import React from 'react';
 import {AbsoluteFill, Sequence} from 'remotion';
 import {AudioController} from './audio/AudioController';
-import {SceneWipe, type SceneWipeProps} from './components/fx/SceneWipe';
 import {OrganSubtitles} from './components/ui/OrganSubtitles';
 import {SCENES, sceneLength} from './data/scriptData';
 import {Scene1MidnightHeist} from './scenes/Scene1_MidnightHeist';
@@ -13,6 +12,7 @@ import {PALETTE} from './theme';
 import type {SceneId} from './types/dialogue';
 
 export type OrganDramaPilotProps = {
+  /** Kinetic captions (off: the pilot plays without captions). */
   showSubtitles: boolean;
   /** Gain for the voiceover (1 = as mastered). */
   voiceVolume: number;
@@ -23,7 +23,7 @@ export type OrganDramaPilotProps = {
 };
 
 export const defaultPilotProps: OrganDramaPilotProps = {
-  showSubtitles: true,
+  showSubtitles: false,
   voiceVolume: 1,
   musicVolume: 1,
   sfxVolume: 1,
@@ -38,18 +38,10 @@ const SCENE_COMPONENTS: Record<SceneId, React.FC> = {
   5: Scene5ThreeHourRule,
 };
 
-/** How each cut is covered: down the hatch, two panel sweeps, and a morning sunburst. */
-const WIPES: Record<Exclude<SceneId, 1>, SceneWipeProps['kind']> = {
-  2: 'drop',
-  3: 'slide',
-  4: 'slide',
-  5: 'sunburst',
-};
-
 /**
- * "Organ Drama: Midnight Pizza" — the master timeline: five scenes in
- * sequence, a comic wipe over each cut, kinetic subtitles, and the audio
- * (voiceover, ducked pizzicato score, sound effects).
+ * "Organ Drama: Midnight Pizza" — the master timeline: five scenes joined
+ * by hard cuts, and the audio (voiceover, ducked pizzicato score, sound
+ * effects). Captions are off unless `showSubtitles` is set.
  */
 export const OrganDramaPilot: React.FC<OrganDramaPilotProps> = ({showSubtitles, voiceVolume, musicVolume, sfxVolume, music}) => (
   <AbsoluteFill style={{background: PALETTE.midnight}}>
@@ -61,9 +53,6 @@ export const OrganDramaPilot: React.FC<OrganDramaPilotProps> = ({showSubtitles, 
         </Sequence>
       );
     })}
-    {SCENES.slice(1).map((scene) => (
-      <SceneWipe key={`wipe-${scene.id}`} at={scene.startFrame} kind={WIPES[scene.id as Exclude<SceneId, 1>]} />
-    ))}
     {showSubtitles ? <OrganSubtitles /> : null}
     <AudioController voiceVolume={voiceVolume} musicVolume={musicVolume} sfxVolume={sfxVolume} music={music} />
   </AbsoluteFill>

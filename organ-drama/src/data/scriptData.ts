@@ -5,12 +5,12 @@ import type {DialogueLine, SceneDefinition, SceneId, SpeakerId} from '../types/d
  * "Organ Drama: Midnight Pizza" — the shooting script.
  *
  * Every frame number is copied from the script and is inclusive at both ends
- * ("F76 - F180" → 76..180). The script's last line and scene end on "F1800",
- * which is one past the final frame of an 1800-frame composition, so they
- * stop at 1799. Scene beats in `src/scenes/` are keyed to these numbers.
+ * ("F76 - F180" → 76..180). Scene beats in `src/scenes/` are keyed to these
+ * numbers. The subscribe outro (F1651–F1800) was cut: the video now ends on
+ * the 3-hour rule, with a short hold after the last line.
  */
 export const FPS = 30;
-export const TOTAL_FRAMES = 1800;
+export const TOTAL_FRAMES = 1680;
 export const LAST_FRAME = TOTAL_FRAMES - 1;
 
 export const SCENES: readonly SceneDefinition[] = [
@@ -185,7 +185,7 @@ export const DIALOGUE: readonly DialogueLine[] = [
     direction: 'Stomach, lying on its side, cries next to the broken padlock.',
   },
 
-  // ── Scene 5: The 3-Hour Golden Rule & Outro ────────────────────────────
+  // ── Scene 5: The 3-Hour Golden Rule ────────────────────────────────────
   {
     id: 's5-narrator-rule',
     scene: 5,
@@ -196,28 +196,6 @@ export const DIALOGUE: readonly DialogueLine[] = [
     delivery: 'normal',
     emphasis: ['three', 'hours', 'letter'],
     direction: 'Next morning. The letter holds a stopwatch that ratchets round to 3 HOURS.',
-  },
-  {
-    id: 's5-brain-subscribe',
-    scene: 5,
-    speakers: ['BRAIN'],
-    text: "Subscribe to Organ Drama! You'll thank me later!",
-    startFrame: 1651,
-    endFrame: 1730,
-    delivery: 'shout',
-    emphasis: ['Subscribe', 'Organ', 'Drama'],
-    direction: 'Every organ bounces on a beating EKG line next to a subscribe button.',
-  },
-  {
-    id: 's5-chorus-will-not',
-    scene: 5,
-    speakers: ['STOMACH', 'HEART'],
-    text: 'We will not!',
-    startFrame: 1731,
-    endFrame: LAST_FRAME,
-    delivery: 'shout',
-    emphasis: ['not'],
-    direction: 'Stomach and Heart fold their arms. Rimshot.',
   },
 ];
 
@@ -240,10 +218,8 @@ export const SFX_CUES: readonly SFXTrigger[] = [
   {id: 'liquid_slosh', frame: 1210, scene: 4, durationInFrames: 36, volume: 0.75, label: 'Liquid sloshing'},
   {id: 'acid_sizzle', frame: 1240, scene: 4, durationInFrames: 60, volume: 0.5, label: 'Sizzling acid'},
   {id: 'cartoon_alarm', frame: 1320, scene: 4, durationInFrames: 60, volume: 0.35, label: 'Cartoon siren'},
-  {id: 'morning_chime', frame: 1500, scene: 4, durationInFrames: 55, volume: 0.55, label: 'Morning chime transition'},
+  {id: 'morning_chime', frame: 1500, scene: 4, durationInFrames: 55, volume: 0.55, label: 'Morning chime on the cut to morning'},
   {id: 'gear_ratchet', frame: 1560, scene: 5, durationInFrames: 20, volume: 0.6, label: 'Ratchet gear turn'},
-  {id: 'boing_jump', frame: 1700, scene: 5, durationInFrames: 20, volume: 0.7, label: 'Group boing bounce'},
-  {id: 'comic_rimshot', frame: 1780, scene: 5, durationInFrames: 20, volume: 0.75, label: 'Final pop rimshot'},
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────

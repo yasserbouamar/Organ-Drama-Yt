@@ -23,7 +23,7 @@ export type Delivery = 'normal' | 'shout' | 'whisper' | 'drowsy';
 export interface DialogueLine {
   id: string;
   scene: SceneId;
-  /** Usually one speaker; the outro's "We will not!" is sung by two. */
+  /** Usually one speaker; a chorus line can have several. */
   speakers: readonly SpeakerId[];
   text: string;
   startFrame: number;

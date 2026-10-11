@@ -25,7 +25,7 @@ const SCENE_DEV: {id: SceneId; component: React.FC}[] = [
   {id: 5, component: Scene5ThreeHourRule},
 ];
 
-/** Registers the pilot (1920×1080, 30 fps, 1800 frames) plus dev compositions for each scene and the model sheet. */
+/** Registers the pilot (1920×1080, 30 fps, 1680 frames) plus dev compositions for each scene and the model sheet. */
 export const RemotionRoot: React.FC = () => (
   <>
     <Composition

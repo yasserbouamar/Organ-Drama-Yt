@@ -1,13 +1,13 @@
-# Organ Drama: Midnight Pizza (60s Pilot)
+# Organ Drama: Midnight Pizza (Pilot)
 
-A 60-second animated health explainer built in [Remotion](https://www.remotion.dev) with React and TypeScript. It's midnight, the Brain sneaks a whole pizza, and the Stomach finds out the hard way. The pilot teaches two facts: the fullness signal takes about 20 minutes to reach the brain, and you should wait 3 hours after a heavy meal before lying down.
+A 56-second animated health explainer built in [Remotion](https://www.remotion.dev) with React and TypeScript. It's midnight, the Brain sneaks a whole pizza, and the Stomach finds out the hard way. The pilot teaches two facts: the fullness signal takes about 20 minutes to reach the brain, and you should wait 3 hours after a heavy meal before lying down.
 
 Everything is drawn in code: 2D cutout-style puppets with bold ink outlines, flat pastel colours and soft gradients. The puppets, backgrounds and infographics are all procedural SVG, so there are no image assets. The sound effects and music are synthesized procedurally too.
 
 | | |
 |---|---|
 | Composition ID | `OrganDramaPilot` |
-| Format | 1920 × 1080, 30 fps, 1800 frames (60.0 s) |
+| Format | 1920 × 1080, 30 fps, 1680 frames (56.0 s), hard cuts, no captions |
 | Dev compositions | `Dev/Scene1` … `Dev/Scene5` (each scene alone), `Dev/CharacterSheet` (every puppet and state) |
 
 ## Quick start
@@ -68,7 +68,7 @@ The finished audio is then analysed into a per-frame **viseme track** (`idle`, `
 
 ## Timeline
 
-Every frame number below is taken from the shooting script (`src/data/scriptData.ts`), inclusive at both ends. The script's "F1800" endings stop at 1799, the last frame of an 1800-frame composition.
+Every frame number below is taken from the shooting script (`src/data/scriptData.ts`), inclusive at both ends. The script's subscribe outro (F1651–F1800) was cut, so the video ends on the 3-hour rule with a one-second hold after the last line.
 
 | Scene | Frames | Dialogue | SFX cues |
 |---|---|---|---|
@@ -76,7 +76,7 @@ Every frame number below is taken from the shooting script (`src/data/scriptData
 | **2 · The Valve Closes** (gut) | 331–690 | STOMACH 331–430, NARRATOR 431–520, PIZZA 521–560, STOMACH 561–690 | lock 390, knock 480, splash 520, pop 530 |
 | **3 · The 20-Minute Delay** (gut) | 691–1110 | BRAIN 691–810, NARRATOR 811–960, STOMACH 961–1050, LETTER 1051–1110 | gulps 700/740/780, ticking 840, ding 920, horn 1060 |
 | **4 · The Heartburn Catastrophe** (gut) | 1111–1500 | BRAIN 1111–1190, NARRATOR 1191–1310, HEART 1311–1410, STOMACH 1411–1500 | flomp 1160, slosh 1210, sizzle 1240, siren 1320, morning chime 1500 |
-| **5 · The 3-Hour Golden Rule** (bedroom) | 1501–1799 | NARRATOR 1501–1650, BRAIN 1651–1730, STOMACH & HEART 1731–1799 | ratchet 1560, boing 1700, rimshot 1780 |
+| **5 · The 3-Hour Golden Rule** (bedroom) | 1501–1679 | NARRATOR 1501–1650 | ratchet 1560 |
 
 Scene beats are written in absolute script frames as well. For example, `tween(g, [386, 391], …)` means "F386–F391", so the picture and the cue sheet read the same. `assertScriptIntegrity()` throws at startup if scenes stop tiling the timeline, lines overlap or spill out of their scene, or a cue runs past the end.
 
@@ -84,9 +84,9 @@ Scene beats are written in absolute script frames as well. For example, `tween(g
 
 ```
 src/
-├── Root.tsx                     # OrganDramaPilot (1920×1080, 30 fps, 1800 frames) + Dev compositions
+├── Root.tsx                     # OrganDramaPilot (1920×1080, 30 fps, 1680 frames) + Dev compositions
 ├── index.ts
-├── OrganDramaPilot.tsx          # Master timeline: scenes, wipes, subtitles, audio
+├── OrganDramaPilot.tsx          # Master timeline: scenes on hard cuts, optional subtitles, audio
 ├── theme.ts · fonts.ts          # Palette, ink weights, fonts (Bangers + Montserrat, bundled offline)
 ├── types/
 │   ├── dialogue.ts              # DialogueLine, Viseme, CharacterType, SpeakerId, SceneDefinition
@@ -109,8 +109,8 @@ src/
 │   ├── infographics/            # StopwatchGauge, AcidRefluxMeter, TitleCard
 │   ├── ui/                      # OrganSubtitles, SpeechBubble, InsetPanel
 │   ├── backgrounds/             # Bedroom (night ↔ morning, 7-segment clock), Gut (peristaltic walls)
-│   ├── props/                   # PizzaBox, Esophagus, RedBloodCellTaxi, Mailbox, EKGLine, SubscribeButton, Callout
-│   └── fx/                      # Camera, Place, ComicBurst, SunburstRays, SceneWipe, Zzz
+│   ├── props/                   # PizzaBox, Esophagus, RedBloodCellTaxi, Mailbox, Callout
+│   └── fx/                      # Camera, Place, ComicBurst, Zzz
 ├── scenes/                      # Scene1_MidnightHeist … Scene5_ThreeHourRule, UpstairsSet, shared camera/clock
 ├── utils/                       # Animation (springs, blinks), lip-sync, syllables, geometry, static files
 ├── remake/                      # ReferenceRemake style test (script, puppets, sets, shots)
@@ -144,7 +144,7 @@ public/audio/remake/            # Kokoro lines (vo/) and music (bgm.wav) for the
 
 | Prop | Default | |
 |---|---|---|
-| `showSubtitles` | `true` | Kinetic subtitles with speaker tags |
+| `showSubtitles` | `false` | Kinetic subtitles with speaker tags (off: the pilot ships without captions) |
 | `voiceVolume` | `1` | Voiceover gain |
 | `musicVolume` | `1` | Multiplier on the ducking curve |
 | `sfxVolume` | `1` | Sound-effect gain |

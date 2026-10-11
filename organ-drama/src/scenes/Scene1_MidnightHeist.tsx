@@ -6,7 +6,6 @@ import {PizzaSliceArt} from '../components/characters/PizzaSlice';
 import {Camera} from '../components/fx/Camera';
 import {Place} from '../components/fx/Place';
 import {Zzz} from '../components/fx/Zzz';
-import {TitleCard} from '../components/infographics/TitleCard';
 import {PizzaBox} from '../components/props/PizzaBox';
 import {SpeechBubble} from '../components/ui/SpeechBubble';
 import type {Expression, LimbPose, MouthShape} from '../types/characters';
@@ -125,9 +124,6 @@ export const Scene1MidnightHeist: React.FC = () => {
 
       <Sequence from={local(150)} durationInFrames={32} layout="none" name="Shhh bubble">
         <SpeechBubble x={mouthPoint.x - 330} y={mouthPoint.y - 210} tailX={mouthPoint.x - 120} tailY={mouthPoint.y - 40} text="SHHH..." variant="whisper" start={0} duration={32} fontSize={50} />
-      </Sequence>
-      <Sequence from={local(200)} durationInFrames={98} layout="none" name="Show title">
-        <TitleCard text="ORGAN DRAMA" sub="MIDNIGHT PIZZA" variant="logo" durationInFrames={98} x={960} y={230} />
       </Sequence>
     </AbsoluteFill>
   );
