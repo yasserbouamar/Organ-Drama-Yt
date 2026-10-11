@@ -8,6 +8,7 @@
  *   npm run audio -- --skip-vo --skip-sfx --skip-bgm
  *   npm run audio -- --dry-run                  # print the plan, write nothing
  *   npm run audio -- --script remake            # voice the reference-remake test instead of the pilot
+ *   npm run audio -- --episode <slug>           # voice an episode (episodes/<slug>/episode.ts)
  *
  * Voiceover providers, tried in order (`auto`), per line:
  *   1. ElevenLabs, when ELEVENLABS_API_KEY is set (shell or .env).
@@ -36,14 +37,17 @@ import {encodeWav, filter} from '../src/audio/dsp';
 import {NIGHT_BPM, synthesizeNightLoop} from '../src/audio/nightMusic';
 import {BGM_BPM, synthesizeBgmLoop} from '../src/audio/proceduralMusic';
 import {synthesizeBabble} from '../src/audio/proceduralVoice';
-import {synthesizeSfx} from '../src/audio/ProceduralSFX';
+import {SFX_DEFAULT_SECONDS, synthesizeSfx} from '../src/audio/ProceduralSFX';
 import {DIALOGUE, FPS, lineLength, SFX_CUES} from '../src/data/scriptData';
 import {VOICE_CAST} from '../src/data/voiceCast';
 import {VOICEOVER} from '../src/data/voiceover.generated';
 import {REMAKE_CAST, REMAKE_DIALOGUE} from '../src/remake/remakeScript';
 import {VOICEOVER as REMAKE_VOICEOVER} from '../src/remake/voiceover.generated';
 import type {SfxId, VoiceoverClip, VoiceoverManifest, VoicePersona, VoiceProvider} from '../src/types/audio';
-import type {DialogueLine, SpeakerId, WordTiming} from '../src/types/dialogue';
+import {episodeLines} from '../src/engine/timeline';
+import type {Episode} from '../src/engine/types';
+import {episodeCast} from '../src/engine/voices';
+import type {AnyDialogueLine, WordTiming} from '../src/types/dialogue';
 import {babblePlan} from '../src/utils/lipSync';
 import {planSyllables} from '../src/utils/syllables';
 
@@ -84,8 +88,8 @@ const requested = (option('provider') ?? 'auto') as VoiceProvider | 'auto';
 
 /** A script the generator can voice: its lines, cast, manifest and where its clips go. */
 interface ScriptProject {
-  dialogue: readonly DialogueLine[];
-  cast: Record<SpeakerId, VoicePersona>;
+  dialogue: readonly AnyDialogueLine[];
+  cast: Record<string, VoicePersona>;
   manifest: VoiceoverManifest;
   manifestPath: string;
   /** Clip folder inside `public/`. */
@@ -93,7 +97,7 @@ interface ScriptProject {
   /** Whether this script owns the baked SFX library. */
   bakesSfx: boolean;
   /** Its music loop: baked to `public/audio/<dir>/<name>.wav`. */
-  music: {dir: string; name: string; label: string; synth: (sampleRate: number) => Float32Array[]};
+  music?: {dir: string; name: string; label: string; synth: (sampleRate: number) => Float32Array[]};
 }
 
 const PROJECTS: Record<string, ScriptProject> = {
@@ -117,8 +121,23 @@ const PROJECTS: Record<string, ScriptProject> = {
   },
 };
 
+/** An episode's lines and cast, read from `episodes/<slug>/episode.ts`. */
+const episodeProject = (slug: string): ScriptProject => {
+  const dir = path.join(ROOT, 'episodes', slug);
+  const file = path.join(dir, 'episode.ts');
+  if (!existsSync(file)) {
+    throw new Error(`No episode at ${path.relative(ROOT, file)}`);
+  }
+  // tsx compiles the episode on require (this script runs as CommonJS).
+  const episode = (require(file) as {default: Episode}).default;
+  const manifestPath = path.join(dir, 'voiceover.generated.ts');
+  const manifest = existsSync(manifestPath) ? ((require(manifestPath) as {VOICEOVER: VoiceoverManifest}).VOICEOVER ?? {}) : {};
+  return {dialogue: episodeLines(episode), cast: episodeCast(episode), manifest, manifestPath, voDir: `episodes/${slug}/vo`, bakesSfx: false};
+};
+
+const episodeSlug = option('episode');
 const scriptId = option('script') ?? 'pilot';
-const PROJECT = PROJECTS[scriptId];
+const PROJECT = episodeSlug ? episodeProject(episodeSlug) : PROJECTS[scriptId];
 if (!PROJECT) {
   throw new Error(`Unknown --script "${scriptId}" (pilot or remake)`);
 }
@@ -377,8 +396,8 @@ const wordTimings = (text: string, voiced: boolean[]): WordTiming[] => {
 
 interface Take {
   key: string;
-  line: DialogueLine;
-  speaker: SpeakerId;
+  line: AnyDialogueLine;
+  speaker: string;
   /** Multiplier on the persona's own pace. */
   speed: number;
   /** Output path without extension. */
@@ -396,7 +415,7 @@ interface Provider {
   synthesize: (takes: Take[]) => Promise<Map<string, string | Error>>;
 }
 
-const textFor = (line: DialogueLine): string => line.sayAs ?? line.text;
+const textFor = (line: AnyDialogueLine): string => line.sayAs ?? line.text;
 
 /** Audio synthesized in-process, so it can be used without decoding (and without ffmpeg). */
 const synthesized = new Map<string, Float32Array>();
@@ -559,7 +578,7 @@ const writeManifest = (manifest: VoiceoverManifest): void => {
     [
       '// This file is overwritten by `npm run audio`. Do not edit by hand.',
       '// While a line is missing, the video voices it with the procedural babble synth.',
-      "import type {VoiceoverManifest} from '../types/audio';",
+      `import type {VoiceoverManifest} from '${path.relative(path.dirname(MANIFEST), path.join(ROOT, 'src', 'types', 'audio')).split(path.sep).join('/')}';`,
       '',
       `export const VOICEOVER: VoiceoverManifest = ${JSON.stringify(ordered, null, 2)};`,
       '',
@@ -715,7 +734,8 @@ const existingAudio = (dir: string, name: string): string | null =>
   ['mp3', 'wav', 'ogg'].map((ext) => path.join(PUBLIC, 'audio', dir, `${name}.${ext}`)).find((f) => existsSync(f)) ?? null;
 
 const generateSfx = (): void => {
-  const ids = [...new Set(SFX_CUES.map((c) => c.id))] as SfxId[];
+  // The whole library, so episodes can use any effect (pilot cues set the longest lengths).
+  const ids = Object.keys(SFX_DEFAULT_SECONDS) as SfxId[];
   log(`\nSound effects: ${ids.length} procedural recipes`);
   mkdirSync(path.join(PUBLIC, 'audio', 'sfx'), {recursive: true});
   for (const id of ids) {
@@ -725,7 +745,7 @@ const generateSfx = (): void => {
       log(`  ✓ ${id.padEnd(16)} exists (${path.relative(ROOT, existing)})`);
       continue;
     }
-    const seconds = Math.max(...SFX_CUES.filter((c) => c.id === id).map((c) => c.durationInFrames)) / FPS;
+    const seconds = Math.max(SFX_DEFAULT_SECONDS[id], ...SFX_CUES.filter((c) => c.id === id).map((c) => c.durationInFrames / FPS));
     if (!dryRun) {
       writeFileSync(own, encodeWav([synthesizeSfx(id, SR, seconds)], SR));
     }
@@ -734,7 +754,7 @@ const generateSfx = (): void => {
 };
 
 const generateBgm = (): void => {
-  const {dir, name, label, synth} = PROJECT.music;
+  const {dir, name, label, synth} = PROJECT.music!;
   const own = path.join(PUBLIC, 'audio', dir, `${name}.wav`);
   const existing = existingAudio(dir, name);
   log('\nMusic:');
@@ -765,7 +785,7 @@ const main = async (): Promise<void> => {
     if (!flag('skip-sfx') && !only && PROJECT.bakesSfx) {
       generateSfx();
     }
-    if (!flag('skip-bgm') && !only) {
+    if (!flag('skip-bgm') && !only && PROJECT.music) {
       generateBgm();
     }
   } finally {

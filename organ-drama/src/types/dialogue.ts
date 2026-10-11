@@ -18,13 +18,14 @@ export type Delivery = 'normal' | 'shout' | 'whisper' | 'drowsy';
 /**
  * One spoken line. Frame numbers are absolute composition frames and
  * inclusive at both ends, exactly as the shooting script writes them
- * ("F76 - F180" → `startFrame: 76, endFrame: 180`).
+ * ("F76 - F180" → `startFrame: 76, endFrame: 180`). The pilot uses its own
+ * cast and scene numbers; episodes and the remake test use any names.
  */
-export interface DialogueLine {
+export interface DialogueLine<Speaker extends string = SpeakerId, Scene extends number = SceneId> {
   id: string;
-  scene: SceneId;
+  scene: Scene;
   /** Usually one speaker; a chorus line can have several. */
-  speakers: readonly SpeakerId[];
+  speakers: readonly Speaker[];
   text: string;
   startFrame: number;
   endFrame: number;
@@ -36,6 +37,9 @@ export interface DialogueLine {
   /** What the picture shows while the line plays. */
   direction: string;
 }
+
+/** A line from any script: the pilot, the remake test or an episode. */
+export type AnyDialogueLine = DialogueLine<string, number>;
 
 export interface SceneDefinition {
   id: SceneId;

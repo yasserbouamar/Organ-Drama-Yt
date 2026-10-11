@@ -2,7 +2,7 @@ import {DIALOGUE, FPS, lineLength} from '../data/scriptData';
 import {VOICEOVER} from '../data/voiceover.generated';
 import type {VoiceoverClip, VoiceoverManifest} from '../types/audio';
 import type {MouthShape} from '../types/characters';
-import type {DialogueLine, SpeakerId, Viseme, WordTiming} from '../types/dialogue';
+import type {AnyDialogueLine, Viseme, WordTiming} from '../types/dialogue';
 import {planSyllables, visemesFromSyllables, wordsFromSyllables, type Syllable} from './syllables';
 import {publicFileExists} from './staticFiles';
 
@@ -26,7 +26,7 @@ export interface LineTrack {
  * Syllable plan for the babble voice: sized at a natural pace, never longer
  * than the line's window. Pure, so the Node audio generator can use it too.
  */
-export const babblePlan = (line: DialogueLine): {seconds: number; syllables: Syllable[]} => {
+export const babblePlan = (line: AnyDialogueLine): {seconds: number; syllables: Syllable[]} => {
   const probe = planSyllables(line.text, 1, line.delivery);
   const pauses = line.text.match(/[.,!?…]/g)?.length ?? 0;
   const natural = probe.length / BABBLE_RATE[line.delivery] + 0.12 * pauses + 0.2;
@@ -37,18 +37,18 @@ export const babblePlan = (line: DialogueLine): {seconds: number; syllables: Syl
 /** Lip-sync for one script: its lines plus the voiceover manifest written for them. */
 export interface LipSync {
   /** The recorded clip for a line, if the manifest lists one and the file is really there. */
-  recordedClip: (line: DialogueLine) => VoiceoverClip | null;
+  recordedClip: (line: AnyDialogueLine) => VoiceoverClip | null;
   /** Lip-sync and caption timing for a line (cached). */
-  getLineTrack: (line: DialogueLine) => LineTrack;
+  getLineTrack: (line: AnyDialogueLine) => LineTrack;
   /**
    * Mouth shape for `speaker` at an absolute frame: the clip's analysed viseme
    * while they talk, otherwise `rest` (an acting shape chosen by the scene).
    */
-  mouthAt: (speaker: SpeakerId, frame: number, rest?: MouthShape) => MouthShape;
+  mouthAt: (speaker: string, frame: number, rest?: MouthShape) => MouthShape;
 }
 
-export const createLipSync = (dialogue: readonly DialogueLine[], manifest: VoiceoverManifest): LipSync => {
-  const recordedClip = (line: DialogueLine): VoiceoverClip | null => {
+export const createLipSync = (dialogue: readonly AnyDialogueLine[], manifest: VoiceoverManifest): LipSync => {
+  const recordedClip = (line: AnyDialogueLine): VoiceoverClip | null => {
     const clip = manifest[line.id];
     if (!clip) {
       return null;
@@ -57,7 +57,7 @@ export const createLipSync = (dialogue: readonly DialogueLine[], manifest: Voice
   };
 
   const tracks = new Map<string, LineTrack>();
-  const getLineTrack = (line: DialogueLine): LineTrack => {
+  const getLineTrack = (line: AnyDialogueLine): LineTrack => {
     const cached = tracks.get(line.id);
     if (cached) {
       return cached;
@@ -81,7 +81,7 @@ export const createLipSync = (dialogue: readonly DialogueLine[], manifest: Voice
     return track;
   };
 
-  const mouthAt = (speaker: SpeakerId, frame: number, rest: MouthShape = 'idle'): MouthShape => {
+  const mouthAt = (speaker: string, frame: number, rest: MouthShape = 'idle'): MouthShape => {
     const line = dialogue.find((l) => frame >= l.startFrame && frame <= l.endFrame && l.speakers.includes(speaker));
     if (!line) {
       return rest;

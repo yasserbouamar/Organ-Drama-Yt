@@ -1,4 +1,4 @@
-import type {SceneId, SpeakerId, WordTiming} from './dialogue';
+import type {WordTiming} from './dialogue';
 
 /** Every sound effect in the pilot. Each has a procedural recipe in `ProceduralSFX.ts`. */
 export type SfxId =
@@ -27,7 +27,8 @@ export type SfxId =
 export interface SFXTrigger {
   id: SfxId;
   frame: number;
-  scene: SceneId;
+  /** Scene number (the pilot's 1–5, or an episode's scene index). */
+  scene: number;
   /** How long the effect plays (loops like `stopwatch_tick` are synthesized to fit). */
   durationInFrames: number;
   /** Gain, 0..1, relative to dialogue at 1. */
@@ -85,7 +86,7 @@ export interface BabbleVoice {
 
 /** Voice casting for one speaker across every TTS provider. */
 export interface VoicePersona {
-  speaker: SpeakerId;
+  speaker: string;
   direction: string;
   elevenlabs: {
     voiceName: string;

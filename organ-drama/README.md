@@ -8,7 +8,8 @@ Everything is drawn in code: 2D cutout-style puppets with bold ink outlines, fla
 |---|---|
 | Composition ID | `OrganDramaPilot` |
 | Format | 1920 × 1080, 30 fps, 1680 frames (56.0 s), hard cuts, no captions |
-| Dev compositions | `Dev/Scene1` … `Dev/Scene5` (each scene alone), `Dev/CharacterSheet` (every puppet and state) |
+| Dev compositions | `Dev/Scene1` … `Dev/Scene5` (each scene alone), `Dev/CharacterSheet` (every puppet and state), `Dev/ShapeSheet` (the episode shape library) |
+| Episodes | `Episodes/<slug>`: videos made from a topic with the episode engine (see below) |
 
 ## Quick start
 
@@ -113,14 +114,18 @@ src/
 │   └── fx/                      # Camera, Place, ComicBurst, Zzz
 ├── scenes/                      # Scene1_MidnightHeist … Scene5_ThreeHourRule, UpstairsSet, shared camera/clock
 ├── utils/                       # Animation (springs, blinks), lip-sync, syllables, geometry, static files
+├── engine/                      # Episode engine: format (types.ts), timeline, renderer, shapes, sets, pop-ups
 ├── remake/                      # ReferenceRemake style test (script, puppets, sets, shots)
 └── dev/CharacterSheet.tsx
+episodes/<slug>/                 # One video per folder: episode.ts + voiceover.generated.ts
 scripts/
+├── episode.ts                   # Episode CLI: new, check, voice, stills, render
 ├── generate-audio.ts            # Voiceover + SFX + music generator
 ├── kokoro_tts.py                # Offline Kokoro helper (optional)
 └── requirements.txt
 public/audio/{vo,sfx,bgm}/       # Generated audio (committed)
 public/audio/remake/            # Kokoro lines (vo/) and music (bgm.wav) for the style test
+public/episodes/<slug>/vo/       # Episode voice clips
 ```
 
 ## How it fits together
@@ -149,6 +154,48 @@ public/audio/remake/            # Kokoro lines (vo/) and music (bgm.wav) for the
 | `musicVolume` | `1` | Multiplier on the ducking curve |
 | `sfxVolume` | `1` | Sound-effect gain |
 | `music` | `true` | Music on/off |
+
+## Episodes: from a topic to a video
+
+The pilot's look is also a reusable engine. An episode is one typed file,
+`episodes/<slug>/episode.ts`, listing a cast (puppet + Kokoro voice each) and
+scenes made of beats (a line, plus acting, camera, pop-ups and sound effects).
+`src/engine/` turns it into a video, timing everything from the recorded
+voices, so nobody writes frame numbers.
+
+```bash
+npm run episode -- new why-we-yawn     # scaffold episodes/why-we-yawn/episode.ts
+npm run episode -- check why-we-yawn   # typecheck + validate + timeline table
+npm run episode -- voice why-we-yawn   # Kokoro voices; re-times the video
+npm run episode -- stills why-we-yawn  # one frame per beat + a contact sheet
+npm run episode -- render why-we-yawn  # → out/episodes/why-we-yawn.mp4
+```
+
+In Claude Code, the `make-video` skill (`.claude/skills/make-video/` at the
+repository root) runs this whole loop from a topic: it asks for the length,
+researches the facts, writes the script, casts and voices the characters,
+reviews the frames and renders the MP4. Try `/make-video why we yawn`.
+
+What the engine provides:
+
+- **Cast**: the pilot's Brain, Stomach, Heart, Letter and Pizza, plus a shape
+  library (lungs, liver, kidney, intestine, bladder, tooth, bone, blood cells,
+  virus, bacteria, neuron, cell, molecule, water drop, pill, mug, apple, sugar
+  cube, muscle, eyeball) drawn in the same style, with hats, glasses and ties.
+  Custom bodies are one SVG path plus a few anchor points.
+- **Acting**: 14 expressions, 13 gestures (wave, point, shrug, facepalm…),
+  one-off motions (jump, faint, spin…), walking, entrances and exits, props
+  that can be picked up, automatic eye lines and lip-sync.
+- **Sets**: bedroom, kitchen, gut, body interior, outdoors, stage,
+  classroom and a plain comic backdrop.
+- **Camera**: frames whoever is on screen and leans in on the speaker
+  without cropping anyone.
+- **Pop-ups**: title cards, callouts with arrows, dials, meters, speech
+  bubbles, starbursts and tip lists.
+- **Sound**: the ducked pizzicato (or music-box) score and the SFX library.
+  No captions, logos or outro.
+
+`episodes/coffee-vs-sleep/` is a complete example (about 40 s).
 
 ## Style test: ReferenceRemake
 

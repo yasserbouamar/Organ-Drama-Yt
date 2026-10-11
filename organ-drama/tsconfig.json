@@ -17,5 +17,5 @@
     "isolatedModules": true,
     "types": ["node"]
   },
-  "include": ["src", "scripts", "remotion.config.ts"]
+  "include": ["src", "scripts", "episodes", "remotion.config.ts"]
 }

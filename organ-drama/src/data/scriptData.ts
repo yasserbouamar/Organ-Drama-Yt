@@ -225,7 +225,7 @@ export const SFX_CUES: readonly SFXTrigger[] = [
 // ── Helpers ───────────────────────────────────────────────────────────────
 
 export const sceneLength = (s: SceneDefinition): number => s.endFrame - s.startFrame + 1;
-export const lineLength = (l: DialogueLine): number => l.endFrame - l.startFrame + 1;
+export const lineLength = (l: {startFrame: number; endFrame: number}): number => l.endFrame - l.startFrame + 1;
 
 export const getScene = (id: SceneId): SceneDefinition => {
   const scene = SCENES.find((s) => s.id === id);

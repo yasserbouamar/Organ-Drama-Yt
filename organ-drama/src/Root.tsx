@@ -2,6 +2,9 @@ import React from 'react';
 import {Composition, Folder} from 'remotion';
 import {assertScriptIntegrity, getScene, sceneLength, TOTAL_FRAMES} from './data/scriptData';
 import {CharacterSheet} from './dev/CharacterSheet';
+import {ShapeSheet} from './engine/dev/ShapeSheet';
+import {episodeFrames} from './engine/EpisodeVideo';
+import {EPISODES, EpisodeComposition} from './engine/registry';
 import {loadOrganDramaFonts} from './fonts';
 import {defaultPilotProps, OrganDramaPilot} from './OrganDramaPilot';
 import {REMAKE_FRAMES} from './remake/remakeScript';
@@ -39,6 +42,7 @@ export const RemotionRoot: React.FC = () => (
     />
     <Folder name="Dev">
       <Composition id="CharacterSheet" component={CharacterSheet} durationInFrames={300} fps={VIDEO.fps} width={VIDEO.width} height={VIDEO.height} />
+      <Composition id="ShapeSheet" component={ShapeSheet} durationInFrames={60} fps={VIDEO.fps} width={VIDEO.width} height={VIDEO.height} defaultProps={{page: 0}} />
       {SCENE_DEV.map(({id, component}) => (
         <Composition
           key={id}
@@ -48,6 +52,20 @@ export const RemotionRoot: React.FC = () => (
           fps={VIDEO.fps}
           width={VIDEO.width}
           height={VIDEO.height}
+        />
+      ))}
+    </Folder>
+    <Folder name="Episodes">
+      {EPISODES.map((entry) => (
+        <Composition
+          key={entry.slug}
+          id={entry.slug}
+          component={EpisodeComposition}
+          durationInFrames={episodeFrames(entry)}
+          fps={VIDEO.fps}
+          width={VIDEO.width}
+          height={VIDEO.height}
+          defaultProps={{slug: entry.slug}}
         />
       ))}
     </Folder>
