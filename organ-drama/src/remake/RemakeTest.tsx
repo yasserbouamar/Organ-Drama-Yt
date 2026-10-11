@@ -1,6 +1,7 @@
 import React from 'react';
 import {AbsoluteFill, Easing, interpolate, Sequence, spring, useCurrentFrame, useVideoConfig} from 'remotion';
-import {VoiceLines} from '../audio/AudioController';
+import {buildDuckCurve, LoopedMusic, VoiceLines} from '../audio/AudioController';
+import {NIGHT_LOOP_SECONDS, synthesizeNightLoop} from '../audio/nightMusic';
 import {SFXPlayer} from '../audio/SFXPlayer';
 import {PizzaSliceArt} from '../components/characters/PizzaSlice';
 import {Camera} from '../components/fx/Camera';
@@ -19,7 +20,22 @@ import {VOICEOVER} from './voiceover.generated';
 const SYNC = createLipSync(REMAKE_DIALOGUE, VOICEOVER);
 const {mouthAt} = SYNC;
 
-/** The reference's few sound effects, on the frames they land in its mix. No music. */
+/**
+ * Music: a soft music-box bed like the reference's, ducked under every line.
+ * It cuts out dead for the knock gag (21.3 s → the gulp) and eases back in.
+ */
+const MUSIC_FILES = ['audio/remake/bgm.mp3', 'audio/remake/bgm.wav'] as const;
+const MUSIC_CURVE = buildDuckCurve({
+  dialogue: REMAKE_DIALOGUE,
+  lineFrames: (line) => SYNC.getLineTrack(line).durationInFrames,
+  totalFrames: REMAKE_FRAMES,
+  levels: {dialogue: 0.14, transition: 0.3},
+  mutes: [[640, 700]],
+});
+const musicAt = (frame: number) => MUSIC_CURVE[Math.max(0, Math.min(REMAKE_FRAMES - 1, Math.round(frame)))];
+const synthNight = (sr: number) => synthesizeNightLoop(sr, false);
+
+/** The reference's few sound effects, on the frames they land in its mix. */
 const SFX: readonly SFXTrigger[] = [
   {id: 'lock_click', frame: 391, scene: 1, durationInFrames: 12, volume: 0.8, label: 'Padlock snaps on the gate'},
   {id: 'whoosh_soft', frame: 450, scene: 1, durationInFrames: 20, volume: 0.3, label: 'Push-in'},
@@ -309,7 +325,7 @@ const length = (s: {from: number; to: number}) => s.to - s.from + 1;
 /**
  * Internal test: a shot-for-shot recreation of the 37.5 s reference clip in
  * its style (thin plum outlines, muted palette, static framing, hard cuts,
- * no music, no captions), voiced by Kokoro at natural speed.
+ * a quiet music-box bed, no captions), voiced by Kokoro at natural speed.
  */
 export const RemakeTest: React.FC = () => (
   <AbsoluteFill style={{background: R.wallDeep}}>
@@ -326,6 +342,7 @@ export const RemakeTest: React.FC = () => (
       <ShotStomachClose />
     </Sequence>
     <VoiceLines dialogue={REMAKE_DIALOGUE} sync={SYNC} totalFrames={REMAKE_FRAMES} />
+    <LoopedMusic files={MUSIC_FILES} synth={synthNight} cacheKey="remake-night-loop" loopSeconds={NIGHT_LOOP_SECONDS} totalFrames={REMAKE_FRAMES} volumeAt={musicAt} />
     <SFXPlayer cues={SFX} />
   </AbsoluteFill>
 );

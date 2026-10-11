@@ -24,7 +24,8 @@
  *
  * Sound effects and the pizzicato loop are rendered from the same procedural
  * recipes the video uses as live fallbacks, into `public/audio/sfx/<id>.wav`
- * and `public/audio/bgm/bgm.wav`. Existing files are never overwritten without
+ * and `public/audio/bgm/bgm.wav` (the remake's music-box loop goes to
+ * `public/audio/remake/bgm.wav`). Existing files are never overwritten without
  * --force, so a real recording dropped in their place wins.
  */
 import {spawnSync} from 'node:child_process';
@@ -32,7 +33,8 @@ import {existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync} from 'node:fs
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {encodeWav, filter} from '../src/audio/dsp';
-import {synthesizeBgmLoop} from '../src/audio/proceduralMusic';
+import {NIGHT_BPM, synthesizeNightLoop} from '../src/audio/nightMusic';
+import {BGM_BPM, synthesizeBgmLoop} from '../src/audio/proceduralMusic';
 import {synthesizeBabble} from '../src/audio/proceduralVoice';
 import {synthesizeSfx} from '../src/audio/ProceduralSFX';
 import {DIALOGUE, FPS, lineLength, SFX_CUES} from '../src/data/scriptData';
@@ -88,8 +90,10 @@ interface ScriptProject {
   manifestPath: string;
   /** Clip folder inside `public/`. */
   voDir: string;
-  /** Whether this script also owns the baked SFX and music. */
-  bakesSfxAndMusic: boolean;
+  /** Whether this script owns the baked SFX library. */
+  bakesSfx: boolean;
+  /** Its music loop: baked to `public/audio/<dir>/<name>.wav`. */
+  music: {dir: string; name: string; label: string; synth: (sampleRate: number) => Float32Array[]};
 }
 
 const PROJECTS: Record<string, ScriptProject> = {
@@ -99,7 +103,8 @@ const PROJECTS: Record<string, ScriptProject> = {
     manifest: VOICEOVER,
     manifestPath: path.join(ROOT, 'src', 'data', 'voiceover.generated.ts'),
     voDir: 'audio/vo',
-    bakesSfxAndMusic: true,
+    bakesSfx: true,
+    music: {dir: 'bgm', name: 'bgm', label: `8-bar pizzicato loop, ${BGM_BPM} BPM`, synth: (sr) => synthesizeBgmLoop(sr, true)},
   },
   remake: {
     dialogue: REMAKE_DIALOGUE,
@@ -107,7 +112,8 @@ const PROJECTS: Record<string, ScriptProject> = {
     manifest: REMAKE_VOICEOVER,
     manifestPath: path.join(ROOT, 'src', 'remake', 'voiceover.generated.ts'),
     voDir: 'audio/remake/vo',
-    bakesSfxAndMusic: false,
+    bakesSfx: false,
+    music: {dir: 'remake', name: 'bgm', label: `8-bar music-box loop, ${NIGHT_BPM} BPM`, synth: (sr) => synthesizeNightLoop(sr, true)},
   },
 };
 
@@ -728,8 +734,9 @@ const generateSfx = (): void => {
 };
 
 const generateBgm = (): void => {
-  const own = path.join(PUBLIC, 'audio', 'bgm', 'bgm.wav');
-  const existing = existingAudio('bgm', 'bgm');
+  const {dir, name, label, synth} = PROJECT.music;
+  const own = path.join(PUBLIC, 'audio', dir, `${name}.wav`);
+  const existing = existingAudio(dir, name);
   log('\nMusic:');
   if (existing && !(force && existing === own)) {
     log(`  ✓ exists (${path.relative(ROOT, existing)})`);
@@ -737,9 +744,9 @@ const generateBgm = (): void => {
   }
   if (!dryRun) {
     mkdirSync(path.dirname(own), {recursive: true});
-    writeFileSync(own, encodeWav(synthesizeBgmLoop(SR, true), SR));
+    writeFileSync(own, encodeWav(synth(SR), SR));
   }
-  log(`  ✓ 8-bar pizzicato loop, 120 BPM → ${path.relative(ROOT, own)}`);
+  log(`  ✓ ${label} → ${path.relative(ROOT, own)}`);
 };
 
 const main = async (): Promise<void> => {
@@ -755,10 +762,10 @@ const main = async (): Promise<void> => {
     if (!flag('skip-vo')) {
       await generateVoiceover();
     }
-    if (!flag('skip-sfx') && !only && PROJECT.bakesSfxAndMusic) {
+    if (!flag('skip-sfx') && !only && PROJECT.bakesSfx) {
       generateSfx();
     }
-    if (!flag('skip-bgm') && !only && PROJECT.bakesSfxAndMusic) {
+    if (!flag('skip-bgm') && !only) {
       generateBgm();
     }
   } finally {

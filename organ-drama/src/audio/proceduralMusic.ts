@@ -39,7 +39,7 @@ const MELODY: readonly (readonly (readonly [number, number])[])[] = [
 ];
 
 /** A pizzicato note: a short, bright pluck with a wooden body resonance. */
-const pizz = (sr: number, rng: Rng, midi: number, length: number, brightness: number): Float32Array => {
+export const pizz = (sr: number, rng: Rng, midi: number, length: number, brightness: number): Float32Array => {
   const f = midiToHz(midi);
   const raw = pluck(sr, f, length, rng, brightness, 0.997);
   const body = filter(raw, sr, 'peak', 420, 1.1, 4);

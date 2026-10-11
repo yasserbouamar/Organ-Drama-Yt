@@ -101,6 +101,7 @@ src/
 │   ├── SFXPlayer.tsx            # Frame-driven SFX triggers (file or procedural)
 │   ├── ProceduralSFX.ts         # 20 effect recipes + the Web Audio bridge
 │   ├── proceduralMusic.ts       # Karplus–Strong pizzicato loop
+│   ├── nightMusic.ts            # Music-box loop for the style test
 │   ├── proceduralVoice.ts       # Formant "babble" voice
 │   └── dsp.ts                   # Oscillators, noise, filters, plucks, WAV encoder
 ├── components/
@@ -119,7 +120,7 @@ scripts/
 ├── kokoro_tts.py                # Offline Kokoro helper (optional)
 └── requirements.txt
 public/audio/{vo,sfx,bgm}/       # Generated audio (committed)
-public/audio/remake/vo/          # Kokoro lines for the style test
+public/audio/remake/            # Kokoro lines (vo/) and music (bgm.wav) for the style test
 ```
 
 ## How it fits together
@@ -151,11 +152,11 @@ public/audio/remake/vo/          # Kokoro lines for the style test
 
 ## Style test: ReferenceRemake
 
-`Tests/ReferenceRemake` (1124 frames, about 37 s) is an internal test. It rebuilds a short reference clip shot for shot to check whether this pipeline can match a given look. It has no captions and no music. It uses sparse SFX and a Kokoro-voiced cast with a British narrator, and it reuses the pilot's lip sync, SFX player and voice sequencing.
+`Tests/ReferenceRemake` (1124 frames, about 37 s) is an internal test. It rebuilds a short reference clip shot for shot to check whether this pipeline can match a given look. It has no captions. Under the dialogue runs a quiet music-box bed (`src/audio/nightMusic.ts`, baked to `public/audio/remake/bgm.wav`); it ducks under every line and cuts out for the knock gag. It uses sparse SFX and a Kokoro-voiced cast with a British narrator, and it reuses the pilot's lip sync, SFX player, voice sequencing and ducking.
 
 ```bash
 npm run render:remake                        # → out/reference-remake.mp4
-npm run audio -- --script remake --provider kokoro --force   # re-voice the test
+npm run audio -- --script remake --provider kokoro --force   # re-voice the test and re-bake its music
 ```
 
 The script, timings and cast are in `src/remake/remakeScript.ts`. The puppets (`RemakeBrain`, `RemakeStomach`) and sets use the thinner plum line and the muted palette in `src/remake/remakeTheme.ts`.

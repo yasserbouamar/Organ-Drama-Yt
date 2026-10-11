@@ -24,53 +24,74 @@ const FADE_OUT_FRAMES = 30;
 /** Put your own score at `public/audio/bgm/bgm.<ext>` to replace the procedural loop. */
 const BGM_FILES = ['audio/bgm/bgm.mp3', 'audio/bgm/bgm.wav', 'audio/bgm/bgm.ogg'] as const;
 
-let duckCurve: Float32Array | null = null;
+export interface DuckOptions {
+  dialogue: readonly DialogueLine[];
+  /** Line → its audible length (for the pilot, the shared lip-sync tracks). */
+  lineFrames: (line: DialogueLine) => number;
+  totalFrames: number;
+  levels?: {dialogue: number; transition: number};
+  /** Frame ranges `[from, to]` where the music cuts out completely (a gag, a hard cut). */
+  mutes?: readonly (readonly [number, number])[];
+}
 
 /**
- * The music gain for every frame: 0.15 while a voice is sounding, 0.35 in
- * real gaps and scene transitions. Ducking is fast (and anticipates the
- * next line), swelling back up is slow.
+ * The music gain for every frame: low while a voice is sounding, higher in
+ * real gaps and transitions. Ducking is fast (and anticipates the next
+ * line), swelling back up is slow. Mutes stop the music dead and let it
+ * fade back in afterwards.
  */
-const buildDuckCurve = (): Float32Array => {
-  const voiced = new Uint8Array(TOTAL_FRAMES);
-  for (const line of DIALOGUE) {
-    const end = Math.min(line.endFrame, line.startFrame + getLineTrack(line).durationInFrames);
-    for (let f = line.startFrame; f <= end && f < TOTAL_FRAMES; f++) {
+export const buildDuckCurve = ({dialogue, lineFrames, totalFrames, levels = BGM_LEVELS, mutes = []}: DuckOptions): Float32Array => {
+  const voiced = new Uint8Array(totalFrames);
+  for (const line of dialogue) {
+    const end = Math.min(line.endFrame, line.startFrame + lineFrames(line));
+    for (let f = line.startFrame; f <= end && f < totalFrames; f++) {
       voiced[f] = 1;
     }
   }
-  const target = new Float32Array(TOTAL_FRAMES).fill(BGM_LEVELS.dialogue);
+  const target = new Float32Array(totalFrames).fill(levels.dialogue);
   let f = 0;
-  while (f < TOTAL_FRAMES) {
+  while (f < totalFrames) {
     if (voiced[f]) {
       f++;
       continue;
     }
     let g = f;
-    while (g < TOTAL_FRAMES && !voiced[g]) {
+    while (g < totalFrames && !voiced[g]) {
       g++;
     }
-    if (g - f >= MIN_SWELL_FRAMES || g === TOTAL_FRAMES) {
-      const until = g === TOTAL_FRAMES ? g : g - LOOKAHEAD_FRAMES;
+    if (g - f >= MIN_SWELL_FRAMES || g === totalFrames) {
+      const until = g === totalFrames ? g : g - LOOKAHEAD_FRAMES;
       for (let i = f; i < until; i++) {
-        target[i] = BGM_LEVELS.transition;
+        target[i] = levels.transition;
       }
     }
     f = g;
   }
-  const curve = new Float32Array(TOTAL_FRAMES);
+  const curve = new Float32Array(totalFrames);
   let level = target[0];
-  for (let i = 0; i < TOTAL_FRAMES; i++) {
+  for (let i = 0; i < totalFrames; i++) {
     const rate = target[i] < level ? 0.3 : 0.07;
     level += (target[i] - level) * rate;
-    const fade = Math.min(1, i / FADE_IN_FRAMES, (TOTAL_FRAMES - 1 - i) / FADE_OUT_FRAMES);
+    const fade = Math.min(1, i / FADE_IN_FRAMES, (totalFrames - 1 - i) / FADE_OUT_FRAMES);
     curve[i] = level * Math.max(0, fade);
+  }
+  for (const [from, to] of mutes) {
+    for (let i = Math.max(0, from - 2); i < totalFrames; i++) {
+      // Two-frame cut out, then a 20-frame fade back in after the mute.
+      const k = i < from ? (from - i) / 3 : i <= to ? 0 : Math.min(1, (i - to) / 20);
+      if (i > to + 20) {
+        break;
+      }
+      curve[i] *= k;
+    }
   }
   return curve;
 };
 
+let duckCurve: Float32Array | null = null;
+
 export const bgmVolumeAt = (frame: number): number => {
-  duckCurve ??= buildDuckCurve();
+  duckCurve ??= buildDuckCurve({dialogue: DIALOGUE, lineFrames: (line) => getLineTrack(line).durationInFrames, totalFrames: TOTAL_FRAMES});
   return duckCurve[Math.max(0, Math.min(TOTAL_FRAMES - 1, Math.round(frame)))];
 };
 
@@ -120,33 +141,58 @@ export const VoiceLines: React.FC<VoiceLinesProps> = ({dialogue, sync, totalFram
   </>
 );
 
-const LOOP_FRAMES = Math.round(BGM_LOOP_SECONDS * FPS);
+export interface LoopedMusicProps {
+  /** Files to try in `public/`, first match wins (your own score goes first). */
+  files: readonly string[];
+  /** Live fallback when no file exists: renders one loop (mono is fine). */
+  synth: (sampleRate: number) => Float32Array[];
+  cacheKey: string;
+  loopSeconds: number;
+  totalFrames: number;
+  /** Gain per frame of the timeline (usually a ducking curve). */
+  volumeAt: (frame: number) => number;
+}
 
-const Music: React.FC<{gain: number}> = ({gain}) => {
-  const file = useMemo(() => firstPublicFile(BGM_FILES), []);
+/** A music loop tiled across the timeline: a file from `public/` if present, else synthesized live. */
+export const LoopedMusic: React.FC<LoopedMusicProps> = ({files, synth, cacheKey, loopSeconds, totalFrames, volumeAt}) => {
+  const file = useMemo(() => firstPublicFile(files), [files]);
   if (file) {
-    return <Audio src={staticFile(file)} loop loopVolumeCurveBehavior="extend" volume={(f) => bgmVolumeAt(f) * gain} />;
+    return <Audio src={staticFile(file)} loop loopVolumeCurveBehavior="extend" volume={(f) => volumeAt(f)} />;
   }
-  // No file: synthesize the pizzicato loop (mono, lighter) and tile it across the timeline.
-  return <ProceduralMusic gain={gain} />;
+  return <SynthesizedLoop synth={synth} cacheKey={cacheKey} loopSeconds={loopSeconds} totalFrames={totalFrames} volumeAt={volumeAt} />;
 };
 
-const ProceduralMusic: React.FC<{gain: number}> = ({gain}) => {
-  const src = useMemo(() => synthesizedDataUrl('bgm-loop', LIVE_SAMPLE_RATE, () => synthesizeBgmLoop(LIVE_SAMPLE_RATE, false)), []);
-  const loops = Math.ceil(TOTAL_FRAMES / LOOP_FRAMES);
+const SynthesizedLoop: React.FC<Omit<LoopedMusicProps, 'files'>> = ({synth, cacheKey, loopSeconds, totalFrames, volumeAt}) => {
+  const src = useMemo(() => synthesizedDataUrl(cacheKey, LIVE_SAMPLE_RATE, () => synth(LIVE_SAMPLE_RATE)), [cacheKey, synth]);
+  const loopFrames = Math.round(loopSeconds * FPS);
+  const loops = Math.ceil(totalFrames / loopFrames);
   return (
     <>
       {Array.from({length: loops}, (_, i) => {
-        const from = i * LOOP_FRAMES;
+        const from = i * loopFrames;
         return (
-          <Sequence key={i} from={from} durationInFrames={Math.min(LOOP_FRAMES, TOTAL_FRAMES - from)} layout="none" name={`BGM loop ${i + 1}`}>
-            <Audio src={src} volume={(f) => bgmVolumeAt(from + f) * gain} />
+          <Sequence key={i} from={from} durationInFrames={Math.min(loopFrames, totalFrames - from)} layout="none" name={`Music loop ${i + 1}`}>
+            <Audio src={src} volume={(f) => volumeAt(from + f)} />
           </Sequence>
         );
       })}
     </>
   );
 };
+
+/** The pilot's lighter in-browser fallback: the pizzicato loop in mono. */
+const synthPilotLoop = (sr: number) => synthesizeBgmLoop(sr, false);
+
+const Music: React.FC<{gain: number}> = ({gain}) => (
+  <LoopedMusic
+    files={BGM_FILES}
+    synth={synthPilotLoop}
+    cacheKey="bgm-loop"
+    loopSeconds={BGM_LOOP_SECONDS}
+    totalFrames={TOTAL_FRAMES}
+    volumeAt={(f) => bgmVolumeAt(f) * gain}
+  />
+);
 
 export interface AudioControllerProps {
   voiceVolume?: number;
